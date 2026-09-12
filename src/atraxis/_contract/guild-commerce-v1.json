@@ -33,6 +33,66 @@
       }
     },
     "responses": {
+      "BodyTooLarge": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "JSON-тело превышает 32 КиБ."
+      },
+      "IdempotencyConflict": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Ключ уже использован с другим телом или операция ещё выполняется."
+      },
+      "InvalidJSON": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Некорректный JSON или неизвестное поле."
+      },
+      "InvalidPagination": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "page_size или cursor заданы неверно."
+      },
+      "InvalidPlayerID": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "player_id должен быть положительным числом."
+      },
+      "NotFound": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Игрок, валюта или позиция склада не найдены."
+      },
       "Problem": {
         "content": {
           "application/problem+json": {
@@ -48,12 +108,80 @@
             }
           }
         },
-        "description": "Описание ошибки. Ответ 429 также содержит время ожидания в Retry-After.",
+        "description": "Ошибка запроса.",
         "headers": {
           "X-Request-ID": {
             "$ref": "#/components/headers/RequestID"
           }
         }
+      },
+      "RateLimited": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Лимит запросов исчерпан.",
+        "headers": {
+          "Retry-After": {
+            "description": "Пауза перед повтором, в секундах.",
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "TradeBlocked": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Выдача и переводы временно приостановлены."
+      },
+      "Unauthorized": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Токен не передан, недействителен или отозван.",
+        "headers": {
+          "WWW-Authenticate": {
+            "description": "Ожидаемая схема авторизации.",
+            "schema": {
+              "example": "Bearer realm=\"guild-api\"",
+              "type": "string"
+            }
+          }
+        }
+      },
+      "Unprocessable": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Параметры операции недопустимы."
+      },
+      "UnsupportedMediaType": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Требуется Content-Type application/json."
       }
     },
     "schemas": {
@@ -70,6 +198,7 @@
             "$ref": "#/components/schemas/NonNegativeAmount"
           },
           "direction": {
+            "description": "Направление относительно гильдии.",
             "enum": [
               "in",
               "out"
@@ -77,6 +206,7 @@
             "type": "string"
           },
           "event_id": {
+            "description": "Постоянный идентификатор этой записи для сверки.",
             "format": "uuid",
             "type": "string"
           },
@@ -90,6 +220,7 @@
             "$ref": "#/components/schemas/Amount"
           },
           "kind": {
+            "description": "Тип движения склада или внутренней валюты.",
             "enum": [
               "warehouse_deposit",
               "warehouse_withdrawal",
@@ -100,6 +231,7 @@
             "type": "string"
           },
           "leg_index": {
+            "description": "Номер части внутри операции, начиная с 0.",
             "minimum": 0,
             "type": "integer"
           },
@@ -111,10 +243,12 @@
             "type": "string"
           },
           "operation_id": {
+            "description": "Общий идентификатор всех частей одной операции.",
             "format": "uuid",
             "type": "string"
           },
           "source": {
+            "description": "Где началась операция: чат, игра, API или системное действие.",
             "enum": [
               "chat",
               "game",
@@ -175,6 +309,7 @@
         "additionalProperties": false,
         "properties": {
           "available_since": {
+            "description": "Начало доступной истории операций.",
             "format": "date-time",
             "type": "string"
           },
@@ -186,6 +321,7 @@
             "type": "array"
           },
           "next_cursor": {
+            "description": "Курсор следующей страницы. Поле отсутствует на последней странице.",
             "type": "string"
           }
         },
@@ -250,35 +386,36 @@
           "code": {
             "$ref": "#/components/schemas/CurrencyCode"
           },
-          "max_supply": {
-            "$ref": "#/components/schemas/Amount"
-          },
           "name": {
+            "description": "Название валюты для игроков.",
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
           },
           "total_supply": {
-            "$ref": "#/components/schemas/NonNegativeAmount"
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Сколько единиц валюты сейчас выпущено."
           },
           "transferable": {
+            "description": "Разрешены ли переводы этой валюты между игроками.",
             "type": "boolean"
           },
           "treasury_balance": {
-            "$ref": "#/components/schemas/NonNegativeAmount"
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Сколько выпущенных единиц остаётся на балансе гильдии."
           }
         },
         "required": [
           "code",
           "name",
           "transferable",
-          "max_supply",
           "total_supply",
           "treasury_balance"
         ],
         "type": "object"
       },
       "CurrencyCode": {
+        "description": "Постоянный код валюты из 1–16 символов.",
         "example": "TOKEN",
         "pattern": "^[A-Z][A-Z0-9_]{0,15}$",
         "type": "string"
@@ -286,26 +423,24 @@
       "CurrencyUpdate": {
         "additionalProperties": false,
         "properties": {
-          "max_supply": {
-            "$ref": "#/components/schemas/Amount"
-          },
           "name": {
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
           },
           "transferable": {
+            "description": "Разрешить или запретить переводы между игроками.",
             "type": "boolean"
           }
         },
         "required": [
           "name",
-          "transferable",
-          "max_supply"
+          "transferable"
         ],
         "type": "object"
       },
       "DecimalID": {
+        "description": "Положительный десятичный идентификатор, переданный строкой.",
         "maxLength": 19,
         "pattern": "^[1-9][0-9]*$",
         "type": "string"
@@ -490,6 +625,7 @@
         "additionalProperties": false,
         "properties": {
           "operation_id": {
+            "description": "Общий идентификатор всех частей выполненной операции.",
             "format": "uuid",
             "type": "string"
           },
@@ -545,9 +681,6 @@
       "Warehouse": {
         "additionalProperties": false,
         "properties": {
-          "is_open": {
-            "type": "boolean"
-          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/WarehouseItem"
@@ -556,19 +689,21 @@
             "type": "array"
           },
           "next_cursor": {
+            "description": "Курсор следующей страницы. Поле отсутствует на последней странице.",
             "type": "string"
           },
           "slots_total": {
+            "description": "Общая вместимость склада в ячейках.",
             "minimum": 0,
             "type": "integer"
           },
           "slots_used": {
+            "description": "Сколько ячеек сейчас занято.",
             "minimum": 0,
             "type": "integer"
           }
         },
         "required": [
-          "is_open",
           "slots_used",
           "slots_total",
           "items"
@@ -579,26 +714,33 @@
         "additionalProperties": false,
         "properties": {
           "durability": {
+            "description": "Текущая прочность; 0 для предметов без прочности.",
             "type": "integer"
           },
           "item_id": {
-            "$ref": "#/components/schemas/DecimalID"
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Игровой идентификатор типа предмета."
           },
           "max_durability": {
+            "description": "Максимальная прочность; 0 для предметов без прочности.",
             "type": "integer"
           },
           "name": {
+            "description": "Название предмета, которое видит игрок.",
             "type": "string"
           },
           "quantity": {
+            "description": "Доступное количество.",
             "minimum": 1,
             "type": "integer"
           },
           "transfer_restricted": {
+            "description": "true, если эту позицию нельзя выдать через API.",
             "type": "boolean"
           },
           "warehouse_item_id": {
-            "$ref": "#/components/schemas/DecimalID"
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Идентификатор этой позиции склада. Используется в переводе предмета."
           }
         },
         "required": [
@@ -623,7 +765,7 @@
     }
   },
   "info": {
-    "description": "Инструменты для склада, внутренних валют и выдачи ценностей игрокам.",
+    "description": "Управление складом и внутренними валютами гильдии из бота, сайта или учётной системы.",
     "title": "API гильдии Atraxis",
     "version": "1.0.0"
   },
@@ -631,7 +773,7 @@
   "paths": {
     "/activity": {
       "get": {
-        "description": "Показывает операции гильдии от новых к старым.",
+        "description": "Возвращает движения ценностей гильдии от новых к старым. next_cursor загружает следующую страницу.",
         "operationId": "listGuildActivity",
         "parameters": [
           {
@@ -645,6 +787,36 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "available_since": "2026-09-01T00:00:00Z",
+                  "items": [
+                    {
+                      "asset": {
+                        "currency_code": "TOKEN",
+                        "type": "guild_currency"
+                      },
+                      "balance_after": "8475",
+                      "balance_before": "8500",
+                      "direction": "out",
+                      "event_id": "00000000-0000-4000-8000-000000000003",
+                      "fee": "0",
+                      "from": {
+                        "type": "guild"
+                      },
+                      "gross": "25",
+                      "kind": "currency_transfer",
+                      "leg_index": 0,
+                      "net": "25",
+                      "occurred_at": "2026-09-12T12:30:00Z",
+                      "operation_id": "00000000-0000-4000-8000-000000000002",
+                      "source": "api",
+                      "to": {
+                        "player_id": "100001",
+                        "type": "player"
+                      }
+                    }
+                  ]
+                },
                 "schema": {
                   "$ref": "#/components/schemas/ActivityPage"
                 }
@@ -656,6 +828,15 @@
                 "$ref": "#/components/headers/RequestID"
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/InvalidPagination"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "default": {
             "$ref": "#/components/responses/Problem"
@@ -686,7 +867,7 @@
     },
     "/balances/{player_id}": {
       "get": {
-        "description": "Показывает остатки игрока во всех внутренних валютах гильдии.",
+        "description": "Возвращает баланс игрока в каждой внутренней валюте. Отсутствующий баланс равен «0»; членство в гильдии не требуется.",
         "operationId": "getGuildCurrencyBalances",
         "parameters": [
           {
@@ -724,6 +905,18 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/InvalidPlayerID"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -753,7 +946,7 @@
     },
     "/currencies": {
       "get": {
-        "description": "Показывает все внутренние валюты и доступный гильдии остаток каждой валюты.",
+        "description": "total_supply — общий выпуск, treasury_balance — остаток гильдии.",
         "operationId": "listGuildCurrencies",
         "responses": {
           "200": {
@@ -763,7 +956,6 @@
                   "items": [
                     {
                       "code": "TOKEN",
-                      "max_supply": "1000000",
                       "name": "Жетон лавки",
                       "total_supply": "25000",
                       "transferable": true,
@@ -796,6 +988,12 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
@@ -825,7 +1023,7 @@
     },
     "/currencies/{code}": {
       "put": {
-        "description": "Создаёт внутреннюю валюту или сохраняет её новые настройки. Повтор с теми же данными ничего не меняет.",
+        "description": "Создаёт валюту или обновляет её настройки. Повтор тех же данных ничего не меняет. В одной гильдии может быть до 100 валют.",
         "operationId": "putGuildCurrency",
         "parameters": [
           {
@@ -842,7 +1040,6 @@
           "content": {
             "application/json": {
               "example": {
-                "max_supply": "1000000",
                 "name": "Жетон лавки",
                 "transferable": true
               },
@@ -857,6 +1054,13 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "TOKEN",
+                  "name": "Валюта лавки",
+                  "total_supply": "25000",
+                  "transferable": true,
+                  "treasury_balance": "8500"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/Currency"
                 }
@@ -872,6 +1076,13 @@
           "201": {
             "content": {
               "application/json": {
+                "example": {
+                  "code": "TOKEN",
+                  "name": "Валюта лавки",
+                  "total_supply": "0",
+                  "transferable": true,
+                  "treasury_balance": "0"
+                },
                 "schema": {
                   "$ref": "#/components/schemas/Currency"
                 }
@@ -883,6 +1094,27 @@
                 "$ref": "#/components/headers/RequestID"
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidJSON"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "423": {
+            "$ref": "#/components/responses/TradeBlocked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "default": {
             "$ref": "#/components/responses/Problem"
@@ -896,24 +1128,24 @@
           {
             "label": "cURL",
             "lang": "cURL",
-            "source": "curl --request PUT \\\n  --url 'https://atraxisonline.com/api/external/v1/currencies/TOKEN' \\\n  --header 'Authorization: Bearer agk_example.redacted' \\\n  --header 'Content-Type: application/json' \\\n  --data '{\"name\":\"Жетон лавки\",\"transferable\":true,\"max_supply\":\"1000000\"}'"
+            "source": "curl --request PUT \\\n  --url 'https://atraxisonline.com/api/external/v1/currencies/TOKEN' \\\n  --header 'Authorization: Bearer agk_example.redacted' \\\n  --header 'Content-Type: application/json' \\\n  --data '{\"name\":\"Жетон лавки\",\"transferable\":true}'"
           },
           {
             "label": "Python · sync",
             "lang": "Python",
-            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    currency = client.upsert_currency(\"TOKEN\", name=\"Жетон лавки\", transferable=True, max_supply=1_000_000)"
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    currency = client.upsert_currency(\"TOKEN\", name=\"Жетон лавки\", transferable=True)"
           },
           {
             "label": "Python · async",
             "lang": "Python",
-            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        await client.upsert_currency(\"TOKEN\", name=\"Жетон лавки\", transferable=True, max_supply=1_000_000)\n\nasyncio.run(main())"
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        await client.upsert_currency(\"TOKEN\", name=\"Жетон лавки\", transferable=True)\n\nasyncio.run(main())"
           }
         ]
       }
     },
     "/transfers": {
       "post": {
-        "description": "Выполняет от 1 до 10 переводов вместе. Предметы, кредиты и Эхоны можно выдать только со склада игроку. Внутреннюю валюту можно выпускать, погашать и переводить между гильдией и игроками или между двумя игроками.",
+        "description": "Выполняет 1–10 переводов одной операцией. Если один перевод невозможен, не выполняется ни один. Предметы передаются guild → player. Валюта поддерживает supply ↔ guild, guild ↔ player и, при transferable: true, player → player.",
         "operationId": "createGuildTransfers",
         "parameters": [
           {
@@ -975,6 +1207,26 @@
           "200": {
             "content": {
               "application/json": {
+                "example": {
+                  "operation_id": "00000000-0000-4000-8000-000000000002",
+                  "transfers": [
+                    {
+                      "amount": "25",
+                      "asset": {
+                        "code": "TOKEN",
+                        "type": "guild_currency"
+                      },
+                      "from": {
+                        "type": "guild"
+                      },
+                      "index": 0,
+                      "to": {
+                        "player_id": "100001",
+                        "type": "player"
+                      }
+                    }
+                  ]
+                },
                 "schema": {
                   "$ref": "#/components/schemas/TransferResult"
                 }
@@ -995,6 +1247,33 @@
                 "$ref": "#/components/headers/RequestID"
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidJSON"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/Unprocessable"
+          },
+          "423": {
+            "$ref": "#/components/responses/TradeBlocked"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "default": {
             "$ref": "#/components/responses/Problem"
@@ -1025,7 +1304,7 @@
     },
     "/warehouse": {
       "get": {
-        "description": "Показывает доступные позиции на складе гильдии.",
+        "description": "Возвращает заполнение и позиции склада. Для выдачи используйте warehouse_item_id.",
         "operationId": "getGuildWarehouse",
         "parameters": [
           {
@@ -1040,7 +1319,6 @@
             "content": {
               "application/json": {
                 "example": {
-                  "is_open": true,
                   "items": [
                     {
                       "durability": 0,
@@ -1066,6 +1344,15 @@
                 "$ref": "#/components/headers/RequestID"
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/InvalidPagination"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           },
           "default": {
             "$ref": "#/components/responses/Problem"
@@ -1125,20 +1412,69 @@
   ],
   "x-atraxis-docs": {
     "eyebrow": "Интеграции гильдии",
+    "guides": {
+      "items": [
+        {
+          "description": "Предметы вносят на странице гильдии, через склад в основном боте или командой «Внести …» в привязанном чате с Авророй. У каждого способа свои правила доступа.",
+          "id": "warehouse-refill",
+          "title": "Как пополнить склад"
+        },
+        {
+          "description": "Предметы, кредиты и Эхоны можно только выдать игроку. Пополнить склад можно на странице гильдии, через основной бот или Аврору.",
+          "id": "warehouse-delivery",
+          "title": "API выдаёт ценности из гильдии"
+        },
+        {
+          "description": "Гильдия задаёт код и название валюты. Её можно выпускать, выдавать, возвращать и погашать; supply обозначает выпуск или погашение. Переводы между игроками требуют transferable: true.",
+          "id": "guild-currencies",
+          "title": "Внутренняя валюта не смешивается с игровой"
+        },
+        {
+          "description": "То же тело и Idempotency-Key вернут прежний результат. Другое тело с тем же ключом вернёт 409.",
+          "id": "safe-retries",
+          "title": "Повтор не создаёт вторую выдачу"
+        }
+      ],
+      "title": "Как работают склад и переводы"
+    },
     "introduction": [
-      "Лидер выпускает приватный токен в разделе «Интеграции гильдии».",
-      "Добавьте токен в свой сервис и передавайте его в заголовке Authorization по HTTPS.",
-      "Назначайте каждому переводу постоянный Idempotency-Key, чтобы безопасно повторить запрос при сбое."
+      "Лидер выпускает токен в «Интеграциях гильдии». Токен показывается один раз.",
+      "Передавайте его по HTTPS в заголовке Authorization со схемой Bearer.",
+      "Один Idempotency-Key должен соответствовать одному заказу или переводу."
     ],
     "notes": [
-      {
-        "Передавать идентификатор гильдии не надо": "API определит её по токену."
-      },
-      "В одном запросе можно выполнить от 1 до 10 переводов. Они выполнятся все вместе или не выполнятся вовсе.",
+      "Передавать идентификатор гильдии не надо: API определит её по токену.",
+      "В одном запросе выполняется 1–10 переводов — все вместе либо ни одного.",
       "Суммы передаются целыми числами в строках и не округляются.",
-      "Если сервер ограничил частоту запросов, подождите число секунд из Retry-After и повторите запрос."
+      "JSON-тело — до 32 КиБ. Неизвестные поля запрещены.",
+      "Лимит: 100 запросов в минуту с IP и 60 на гильдию. После 429 ждите Retry-After.",
+      "Каждый ответ содержит X-Request-ID для обращения в поддержку."
     ],
-    "subtitle": "Выдавайте товары со склада, ведите внутреннюю валюту и проверяйте операции из своего сервиса.",
-    "title": "Подключение лавки, бота или учётной системы"
+    "subtitle": "Проверяйте склад, выдавайте товары и ведите внутреннюю валюту из своего сервиса.",
+    "title": "Подключите лавку, бота или учётную систему",
+    "tools": {
+      "description": "Python-библиотека и локальное подключение к ИИ-помощнику.",
+      "items": [
+        {
+          "command": "pip install atraxis-sdk",
+          "description": "Синхронные и асинхронные методы, пагинация и безопасные повторы.",
+          "href": "https://github.com/Atraxis/Python-SDK",
+          "id": "python-sdk",
+          "label": "Python SDK",
+          "link_label": "Открыть руководство по Python SDK",
+          "title": "Библиотека для Python 3.10+"
+        },
+        {
+          "command": "pip install \"atraxis-sdk[mcp]\"",
+          "description": "Чтение документации и работа с гильдией. Изменения включаются только через --allow-writes.",
+          "href": "https://github.com/Atraxis/Python-SDK#подключение-к-codex-и-claude-code",
+          "id": "mcp",
+          "label": "MCP",
+          "link_label": "Открыть инструкцию для Codex и Claude Code",
+          "title": "Подключение к Codex и Claude Code"
+        }
+      ],
+      "title": "Готовые инструменты для подключения"
+    }
   }
 }

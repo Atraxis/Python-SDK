@@ -65,20 +65,19 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
     "ActivityPage": {"available_since", "items", "next_cursor"},
     "Currency": {
         "code",
-        "max_supply",
         "name",
         "total_supply",
         "transferable",
         "treasury_balance",
     },
-    "CurrencyUpdate": {"max_supply", "name", "transferable"},
+    "CurrencyUpdate": {"name", "transferable"},
     "GameItemAsset": {"type", "warehouse_item_id"},
     "GuildCurrencyAsset": {"code", "type"},
     "PlayerBalances": {"balances", "player_id"},
     "Problem": {"detail", "request_id", "status", "title", "type"},
     "Transfer": {"amount", "asset", "from", "to"},
     "TransferResult": {"operation_id", "transfers"},
-    "Warehouse": {"is_open", "items", "next_cursor", "slots_total", "slots_used"},
+    "Warehouse": {"items", "next_cursor", "slots_total", "slots_used"},
     "WarehouseItem": {
         "durability",
         "item_id",
@@ -98,6 +97,28 @@ EXPECTED_PROPERTY_SETS = {
     frozenset({"player_id", "type"}),
     frozenset({"transfers"}),
     frozenset({"type"}),
+}
+EXPECTED_DOC_FIELDS = {
+    "eyebrow",
+    "guides",
+    "introduction",
+    "notes",
+    "subtitle",
+    "title",
+    "tools",
+}
+EXPECTED_GUIDE_IDS = (
+    "warehouse-refill",
+    "warehouse-delivery",
+    "guild-currencies",
+    "safe-retries",
+)
+EXPECTED_TOOL_LINKS = {
+    "python-sdk": "https://github.com/Atraxis/Python-SDK",
+    "mcp": (
+        "https://github.com/Atraxis/Python-SDK"
+        "#подключение-к-codex-и-claude-code"
+    ),
 }
 
 
@@ -146,6 +167,77 @@ def schema_properties(schemas: Mapping[str, Any], name: str) -> set[str]:
     return set(properties)
 
 
+def require_string(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
+    return value
+
+
+def require_list(value: object, name: str) -> list[object]:
+    if not isinstance(value, list):
+        raise ValueError(f"{name} must be an array")
+    return value
+
+
+def validate_documentation(spec: Mapping[str, Any]) -> None:
+    docs = require_mapping(spec.get("x-atraxis-docs"), "x-atraxis-docs")
+    if set(docs) != EXPECTED_DOC_FIELDS:
+        raise ValueError("documentation fields do not match the reviewed contract")
+    for field in ("eyebrow", "title", "subtitle"):
+        require_string(docs.get(field), f"x-atraxis-docs.{field}")
+    for field in ("introduction", "notes"):
+        values = require_list(docs.get(field), f"x-atraxis-docs.{field}")
+        if not values:
+            raise ValueError(f"x-atraxis-docs.{field} must not be empty")
+        for index, value in enumerate(values):
+            require_string(value, f"x-atraxis-docs.{field}[{index}]")
+
+    guides = require_mapping(docs.get("guides"), "x-atraxis-docs.guides")
+    if set(guides) != {"title", "items"}:
+        raise ValueError("documentation guide fields do not match the reviewed contract")
+    require_string(guides.get("title"), "x-atraxis-docs.guides.title")
+    guide_items = require_list(guides.get("items"), "x-atraxis-docs.guides.items")
+    if len(guide_items) != len(EXPECTED_GUIDE_IDS):
+        raise ValueError("documentation guides do not match the reviewed contract")
+    for index, (value, expected_id) in enumerate(
+        zip(guide_items, EXPECTED_GUIDE_IDS, strict=True)
+    ):
+        guide = require_mapping(value, f"guide {index}")
+        if set(guide) != {"id", "title", "description"}:
+            raise ValueError("documentation guide fields do not match the reviewed contract")
+        if guide.get("id") != expected_id:
+            raise ValueError("documentation guides do not match the reviewed contract")
+        require_string(guide.get("title"), f"guide {index}.title")
+        require_string(guide.get("description"), f"guide {index}.description")
+
+    tools = require_mapping(docs.get("tools"), "x-atraxis-docs.tools")
+    if set(tools) != {"title", "description", "items"}:
+        raise ValueError("documentation tool fields do not match the reviewed contract")
+    require_string(tools.get("title"), "x-atraxis-docs.tools.title")
+    require_string(tools.get("description"), "x-atraxis-docs.tools.description")
+    tool_items = require_list(tools.get("items"), "x-atraxis-docs.tools.items")
+    if len(tool_items) != len(EXPECTED_TOOL_LINKS):
+        raise ValueError("documentation tools do not match the reviewed contract")
+    for index, (value, (expected_id, expected_href)) in enumerate(
+        zip(tool_items, EXPECTED_TOOL_LINKS.items(), strict=True)
+    ):
+        tool = require_mapping(value, f"tool {index}")
+        if set(tool) != {
+            "id",
+            "label",
+            "title",
+            "description",
+            "command",
+            "href",
+            "link_label",
+        }:
+            raise ValueError("documentation tool fields do not match the reviewed contract")
+        if tool.get("id") != expected_id or tool.get("href") != expected_href:
+            raise ValueError("documentation tools do not match the reviewed contract")
+        for field in ("label", "title", "description", "command", "link_label"):
+            require_string(tool.get(field), f"tool {index}.{field}")
+
+
 def validate(spec_value: object) -> Mapping[str, Any]:
     spec = require_mapping(spec_value, "OpenAPI")
     if spec.get("openapi") != "3.1.0":
@@ -168,6 +260,7 @@ def validate(spec_value: object) -> Mapping[str, Any]:
         raise ValueError(
             f"unexpected public operations: {sorted(operations ^ EXPECTED_OPERATIONS)}"
         )
+    validate_documentation(spec)
     schemas = component_schemas(spec)
     if set(schemas) != EXPECTED_SCHEMAS:
         raise ValueError("component schemas do not match the reviewed public contract")

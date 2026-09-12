@@ -75,6 +75,33 @@ def test_sync_validator_rejects_unreviewed_schema_field(tmp_path: Path) -> None:
     assert "unexpected" not in result.stderr
 
 
+def test_sync_validator_rejects_unreviewed_documentation_field(
+    tmp_path: Path,
+) -> None:
+    payload = files("atraxis._contract").joinpath("guild-commerce-v1.json").read_text()
+    spec = deepcopy(json.loads(payload))
+    spec["x-atraxis-docs"]["unexpected"] = "not reviewed"
+    source = tmp_path / "contract.json"
+    source.write_text(json.dumps(spec), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/sync_openapi.py",
+            str(source),
+            "--output",
+            str(tmp_path / "snapshot.json"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "documentation fields do not match" in result.stderr
+    assert "unexpected" not in result.stderr
+
+
 def test_contract_uses_only_synthetic_credentials() -> None:
     payload = files("atraxis._contract").joinpath("guild-commerce-v1.json").read_text()
     assert "agk_example.redacted" in payload

@@ -243,7 +243,6 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
                 code: str,
                 name: str,
                 transferable: bool,
-                max_supply: int,
             ) -> dict[str, object]:
                 """Create or replace one guild currency configuration."""
                 try:
@@ -253,7 +252,6 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
                                 code,
                                 name=name,
                                 transferable=transferable,
-                                max_supply=max_supply,
                             )
                         )
                 except Exception as error:

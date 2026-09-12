@@ -21,7 +21,6 @@ BASE_URL = "https://example.test/api/external/v1"
 
 def warehouse(*, next_cursor: str | None = None) -> dict[str, object]:
     result: dict[str, object] = {
-        "is_open": True,
         "slots_used": 1,
         "slots_total": 50,
         "items": [
@@ -64,7 +63,7 @@ def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> Non
     assert requests[1].url.params["cursor"] == "next"
 
 
-def test_large_currency_amounts_are_python_ints_and_wire_strings() -> None:
+def test_currency_configuration_has_only_user_facing_fields() -> None:
     seen: httpx.Request | None = None
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -75,7 +74,6 @@ def test_large_currency_amounts_are_python_ints_and_wire_strings() -> None:
                 "code": "TOKEN",
                 "name": "Token",
                 "transferable": True,
-                "max_supply": "9000000000000000",
                 "total_supply": "9000000000000000",
                 "treasury_balance": "0",
             }
@@ -86,12 +84,11 @@ def test_large_currency_amounts_are_python_ints_and_wire_strings() -> None:
             "TOKEN",
             name="Token",
             transferable=True,
-            max_supply=9_000_000_000_000_000,
         )
 
-    assert currency.max_supply == 9_000_000_000_000_000
+    assert currency.total_supply == 9_000_000_000_000_000
     assert seen is not None
-    assert json.loads(seen.content)["max_supply"] == "9000000000000000"
+    assert json.loads(seen.content) == {"name": "Token", "transferable": True}
 
 
 def test_transfer_generates_key_and_keeps_it_across_retry(monkeypatch: pytest.MonkeyPatch) -> None:

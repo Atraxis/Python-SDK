@@ -20,7 +20,6 @@ from ._transport import (
 from .errors import AtraxisResponseError
 from .models import (
     CURRENCY_CODE_PATTERN,
-    MAX_AMOUNT,
     ActivityEvent,
     ActivityPage,
     Currency,
@@ -60,15 +59,7 @@ def _player_id(value: int) -> int:
     return value
 
 
-def _max_supply(value: int) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_AMOUNT:
-        raise ValueError(f"max_supply must be between 1 and {MAX_AMOUNT}")
-    return value
-
-
-def _currency_update(
-    code: str, name: str, transferable: bool, max_supply: int
-) -> dict[str, object]:
+def _currency_update(code: str, name: str, transferable: bool) -> dict[str, object]:
     if not CURRENCY_CODE_PATTERN.fullmatch(code):
         raise ValueError("code must match [A-Z][A-Z0-9_]{0,15}")
     normalized_name = name.strip()
@@ -79,7 +70,6 @@ def _currency_update(
     return {
         "name": normalized_name,
         "transferable": transferable,
-        "max_supply": str(_max_supply(max_supply)),
     }
 
 
@@ -166,12 +156,11 @@ class AtraxisClient:
         *,
         name: str,
         transferable: bool,
-        max_supply: int,
     ) -> Currency:
         response = self._transport.request(
             "PUT",
             f"currencies/{quote(code, safe='')}",
-            body=_currency_update(code, name, transferable, max_supply),
+            body=_currency_update(code, name, transferable),
         )
         try:
             return Currency.from_dict(object_payload(response))
@@ -292,12 +281,11 @@ class AsyncAtraxisClient:
         *,
         name: str,
         transferable: bool,
-        max_supply: int,
     ) -> Currency:
         response = await self._transport.request(
             "PUT",
             f"currencies/{quote(code, safe='')}",
-            body=_currency_update(code, name, transferable, max_supply),
+            body=_currency_update(code, name, transferable),
         )
         try:
             return Currency.from_dict(object_payload(response))

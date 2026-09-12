@@ -113,7 +113,6 @@ class WarehouseItem:
 
 @dataclass(frozen=True, slots=True)
 class WarehousePage:
-    is_open: bool
     slots_used: int
     slots_total: int
     items: tuple[WarehouseItem, ...]
@@ -123,7 +122,6 @@ class WarehousePage:
     def from_dict(cls, value: object) -> WarehousePage:
         data = _mapping(value, "warehouse")
         return cls(
-            is_open=_boolean(data, "is_open"),
             slots_used=_integer(data, "slots_used"),
             slots_total=_integer(data, "slots_total"),
             items=tuple(
@@ -138,7 +136,6 @@ class Currency:
     code: str
     name: str
     transferable: bool
-    max_supply: int
     total_supply: int
     treasury_balance: int
 
@@ -149,7 +146,6 @@ class Currency:
             code=_text(data, "code"),
             name=_text(data, "name"),
             transferable=_boolean(data, "transferable"),
-            max_supply=_amount(data, "max_supply", minimum=1),
             total_supply=_amount(data, "total_supply"),
             treasury_balance=_amount(data, "treasury_balance"),
         )
