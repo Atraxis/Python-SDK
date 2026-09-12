@@ -1,0 +1,1144 @@
+{
+  "components": {
+    "headers": {
+      "RequestID": {
+        "description": "Идентификатор запроса. Передайте его поддержке, если потребуется помощь.",
+        "required": true,
+        "schema": {
+          "format": "uuid",
+          "type": "string"
+        }
+      }
+    },
+    "parameters": {
+      "Cursor": {
+        "description": "Значение next_cursor из предыдущего ответа для загрузки следующей страницы.",
+        "in": "query",
+        "name": "cursor",
+        "schema": {
+          "maxLength": 512,
+          "type": "string"
+        }
+      },
+      "PageSize": {
+        "description": "Сколько элементов вернуть на одной странице.",
+        "in": "query",
+        "name": "page_size",
+        "schema": {
+          "default": 50,
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        }
+      }
+    },
+    "responses": {
+      "Problem": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "detail": "Проверьте направление, актив, сумму, остаток и вместимость.",
+              "request_id": "00000000-0000-4000-8000-000000000001",
+              "status": 422,
+              "title": "Операция отклонена",
+              "type": "urn:atraxis:problem:unprocessable-transfer"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Описание ошибки. Ответ 429 также содержит время ожидания в Retry-After.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Activity": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/ActivityAsset"
+          },
+          "balance_after": {
+            "$ref": "#/components/schemas/NonNegativeAmount"
+          },
+          "balance_before": {
+            "$ref": "#/components/schemas/NonNegativeAmount"
+          },
+          "direction": {
+            "enum": [
+              "in",
+              "out"
+            ],
+            "type": "string"
+          },
+          "event_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fee": {
+            "$ref": "#/components/schemas/NonNegativeAmount"
+          },
+          "from": {
+            "$ref": "#/components/schemas/ActivityParty"
+          },
+          "gross": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "kind": {
+            "enum": [
+              "warehouse_deposit",
+              "warehouse_withdrawal",
+              "currency_issue",
+              "currency_retire",
+              "currency_transfer"
+            ],
+            "type": "string"
+          },
+          "leg_index": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "net": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "operation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "chat",
+              "game",
+              "api",
+              "system"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "$ref": "#/components/schemas/ActivityParty"
+          }
+        },
+        "required": [
+          "event_id",
+          "occurred_at",
+          "operation_id",
+          "kind",
+          "source",
+          "direction",
+          "from",
+          "to",
+          "asset",
+          "gross",
+          "fee",
+          "net",
+          "leg_index"
+        ],
+        "type": "object"
+      },
+      "ActivityAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "currency_code": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "item_id": {
+            "$ref": "#/components/schemas/DecimalID"
+          },
+          "type": {
+            "enum": [
+              "game_item",
+              "credits",
+              "echos",
+              "guild_currency"
+            ],
+            "type": "string"
+          },
+          "warehouse_item_id": {
+            "$ref": "#/components/schemas/DecimalID"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "ActivityPage": {
+        "additionalProperties": false,
+        "properties": {
+          "available_since": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Activity"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ActivityParty": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "guild"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "supply"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "player_id": {
+                "$ref": "#/components/schemas/DecimalID"
+              },
+              "type": {
+                "const": "player"
+              }
+            },
+            "required": [
+              "type",
+              "player_id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Amount": {
+        "description": "Целое значение от 1 до 9 000 000 000 000 000.",
+        "example": "25",
+        "pattern": "^[1-9][0-9]{0,15}$",
+        "type": "string"
+      },
+      "Currency": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "max_supply": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "total_supply": {
+            "$ref": "#/components/schemas/NonNegativeAmount"
+          },
+          "transferable": {
+            "type": "boolean"
+          },
+          "treasury_balance": {
+            "$ref": "#/components/schemas/NonNegativeAmount"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "transferable",
+          "max_supply",
+          "total_supply",
+          "treasury_balance"
+        ],
+        "type": "object"
+      },
+      "CurrencyCode": {
+        "example": "TOKEN",
+        "pattern": "^[A-Z][A-Z0-9_]{0,15}$",
+        "type": "string"
+      },
+      "CurrencyUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "max_supply": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "transferable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "transferable",
+          "max_supply"
+        ],
+        "type": "object"
+      },
+      "DecimalID": {
+        "maxLength": 19,
+        "pattern": "^[1-9][0-9]*$",
+        "type": "string"
+      },
+      "GameItemAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "type": {
+            "const": "game_item"
+          },
+          "warehouse_item_id": {
+            "$ref": "#/components/schemas/DecimalID"
+          }
+        },
+        "required": [
+          "type",
+          "warehouse_item_id"
+        ],
+        "type": "object"
+      },
+      "GuildCurrencyAsset": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "type": {
+            "const": "guild_currency"
+          }
+        },
+        "required": [
+          "type",
+          "code"
+        ],
+        "type": "object"
+      },
+      "NonNegativeAmount": {
+        "description": "Неотрицательное целое значение не больше 9 000 000 000 000 000.",
+        "example": "0",
+        "pattern": "^(0|[1-9][0-9]{0,15})$",
+        "type": "string"
+      },
+      "Party": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "guild"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "supply"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "player_id": {
+                "$ref": "#/components/schemas/DecimalID"
+              },
+              "type": {
+                "const": "player"
+              }
+            },
+            "required": [
+              "type",
+              "player_id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PlayerBalances": {
+        "additionalProperties": false,
+        "properties": {
+          "balances": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "balance": {
+                  "$ref": "#/components/schemas/NonNegativeAmount"
+                },
+                "code": {
+                  "$ref": "#/components/schemas/CurrencyCode"
+                }
+              },
+              "required": [
+                "code",
+                "balance"
+              ],
+              "type": "object"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "player_id": {
+            "$ref": "#/components/schemas/DecimalID"
+          }
+        },
+        "required": [
+          "player_id",
+          "balances"
+        ],
+        "type": "object"
+      },
+      "Problem": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "maximum": 599,
+            "minimum": 400,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "request_id"
+        ],
+        "type": "object"
+      },
+      "Transfer": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Amount"
+          },
+          "asset": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GameItemAsset"
+              },
+              {
+                "$ref": "#/components/schemas/GuildCurrencyAsset"
+              }
+            ]
+          },
+          "from": {
+            "$ref": "#/components/schemas/Party"
+          },
+          "to": {
+            "$ref": "#/components/schemas/Party"
+          }
+        },
+        "required": [
+          "asset",
+          "from",
+          "to",
+          "amount"
+        ],
+        "type": "object"
+      },
+      "TransferResult": {
+        "additionalProperties": false,
+        "properties": {
+          "operation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "transfers": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "amount": {
+                  "$ref": "#/components/schemas/Amount"
+                },
+                "asset": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/GameItemAsset"
+                    },
+                    {
+                      "$ref": "#/components/schemas/GuildCurrencyAsset"
+                    }
+                  ]
+                },
+                "from": {
+                  "$ref": "#/components/schemas/Party"
+                },
+                "index": {
+                  "maximum": 9,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "to": {
+                  "$ref": "#/components/schemas/Party"
+                }
+              },
+              "required": [
+                "index",
+                "asset",
+                "from",
+                "to",
+                "amount"
+              ],
+              "type": "object"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "operation_id",
+          "transfers"
+        ],
+        "type": "object"
+      },
+      "Warehouse": {
+        "additionalProperties": false,
+        "properties": {
+          "is_open": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WarehouseItem"
+            },
+            "maxItems": 100,
+            "type": "array"
+          },
+          "next_cursor": {
+            "type": "string"
+          },
+          "slots_total": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "slots_used": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "is_open",
+          "slots_used",
+          "slots_total",
+          "items"
+        ],
+        "type": "object"
+      },
+      "WarehouseItem": {
+        "additionalProperties": false,
+        "properties": {
+          "durability": {
+            "type": "integer"
+          },
+          "item_id": {
+            "$ref": "#/components/schemas/DecimalID"
+          },
+          "max_durability": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "transfer_restricted": {
+            "type": "boolean"
+          },
+          "warehouse_item_id": {
+            "$ref": "#/components/schemas/DecimalID"
+          }
+        },
+        "required": [
+          "warehouse_item_id",
+          "item_id",
+          "name",
+          "quantity",
+          "durability",
+          "max_durability",
+          "transfer_restricted"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "guildBearer": {
+        "bearerFormat": "agk_…",
+        "description": "Приватный бессрочный токен, который выпускает лидер в разделе «Интеграции гильдии».",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Инструменты для склада, внутренних валют и выдачи ценностей игрокам.",
+    "title": "API гильдии Atraxis",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/activity": {
+      "get": {
+        "description": "Показывает операции гильдии от новых к старым.",
+        "operationId": "listGuildActivity",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityPage"
+                }
+              }
+            },
+            "description": "Страница истории операций.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Посмотреть историю операций",
+        "tags": [
+          "Активность"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/activity?page_size=50' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    for event in client.iter_activity():\n        print(event.occurred_at, event.kind, event.net)"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        async for event in client.iter_activity():\n            print(event.occurred_at, event.kind, event.net)\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    },
+    "/balances/{player_id}": {
+      "get": {
+        "description": "Показывает остатки игрока во всех внутренних валютах гильдии.",
+        "operationId": "getGuildCurrencyBalances",
+        "parameters": [
+          {
+            "description": "Игровой идентификатор игрока.",
+            "in": "path",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/DecimalID"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "balances": [
+                    {
+                      "balance": "125",
+                      "code": "TOKEN"
+                    }
+                  ],
+                  "player_id": "100001"
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerBalances"
+                }
+              }
+            },
+            "description": "Балансы игрока.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Посмотреть балансы игрока",
+        "tags": [
+          "Валюты"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/balances/100001' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    balances = client.get_balances(100001)"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        balances = await client.get_balances(100001)\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    },
+    "/currencies": {
+      "get": {
+        "description": "Показывает все внутренние валюты и доступный гильдии остаток каждой валюты.",
+        "operationId": "listGuildCurrencies",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "items": [
+                    {
+                      "code": "TOKEN",
+                      "max_supply": "1000000",
+                      "name": "Жетон лавки",
+                      "total_supply": "25000",
+                      "transferable": true,
+                      "treasury_balance": "8500"
+                    }
+                  ]
+                },
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/Currency"
+                      },
+                      "maxItems": 100,
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Список внутренних валют.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Посмотреть внутренние валюты",
+        "tags": [
+          "Валюты"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/currencies' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    for currency in client.list_currencies():\n        print(currency.code, currency.treasury_balance)"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        for currency in await client.list_currencies():\n            print(currency.code, currency.treasury_balance)\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    },
+    "/currencies/{code}": {
+      "put": {
+        "description": "Создаёт внутреннюю валюту или сохраняет её новые настройки. Повтор с теми же данными ничего не меняет.",
+        "operationId": "putGuildCurrency",
+        "parameters": [
+          {
+            "description": "Постоянный код валюты, например TOKEN.",
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CurrencyCode"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "max_supply": "1000000",
+                "name": "Жетон лавки",
+                "transferable": true
+              },
+              "schema": {
+                "$ref": "#/components/schemas/CurrencyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Currency"
+                }
+              }
+            },
+            "description": "Валюта обновлена или уже имела такое состояние.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Currency"
+                }
+              }
+            },
+            "description": "Валюта создана.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Создать или настроить валюту",
+        "tags": [
+          "Валюты"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request PUT \\\n  --url 'https://atraxisonline.com/api/external/v1/currencies/TOKEN' \\\n  --header 'Authorization: Bearer agk_example.redacted' \\\n  --header 'Content-Type: application/json' \\\n  --data '{\"name\":\"Жетон лавки\",\"transferable\":true,\"max_supply\":\"1000000\"}'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    currency = client.upsert_currency(\"TOKEN\", name=\"Жетон лавки\", transferable=True, max_supply=1_000_000)"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        await client.upsert_currency(\"TOKEN\", name=\"Жетон лавки\", transferable=True, max_supply=1_000_000)\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    },
+    "/transfers": {
+      "post": {
+        "description": "Выполняет от 1 до 10 переводов вместе. Предметы, кредиты и Эхоны можно выдать только со склада игроку. Внутреннюю валюту можно выпускать, погашать и переводить между гильдией и игроками или между двумя игроками.",
+        "operationId": "createGuildTransfers",
+        "parameters": [
+          {
+            "description": "Постоянный уникальный ключ одного перевода или заказа.",
+            "example": "order-2026-09-11-0001",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "transfers": [
+                  {
+                    "amount": "25",
+                    "asset": {
+                      "code": "TOKEN",
+                      "type": "guild_currency"
+                    },
+                    "from": {
+                      "type": "guild"
+                    },
+                    "to": {
+                      "player_id": "100001",
+                      "type": "player"
+                    }
+                  }
+                ]
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "transfers": {
+                    "items": {
+                      "$ref": "#/components/schemas/Transfer"
+                    },
+                    "maxItems": 10,
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "transfers"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransferResult"
+                }
+              }
+            },
+            "description": "Все части применены либо возвращён результат безопасного повтора.",
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "Присутствует только для сохранённого повтора.",
+                "schema": {
+                  "enum": [
+                    "true"
+                  ],
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Передать ценности",
+        "tags": [
+          "Переводы"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request POST \\\n  --url 'https://atraxisonline.com/api/external/v1/transfers' \\\n  --header 'Authorization: Bearer agk_example.redacted' \\\n  --header 'Content-Type: application/json' \\\n  --header 'Idempotency-Key: order-2026-09-11-0001' \\\n  --data '{\"transfers\":[{\"asset\":{\"type\":\"guild_currency\",\"code\":\"TOKEN\"},\"from\":{\"type\":\"guild\"},\"to\":{\"type\":\"player\",\"player_id\":\"100001\"},\"amount\":\"25\"}]}'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient, CurrencyTransfer\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    result = client.transfer(\n        [CurrencyTransfer.to_player(\"TOKEN\", player_id=100001, amount=25)],\n        idempotency_key=\"order-2026-09-11-0001\",\n    )"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient, CurrencyTransfer\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        await client.transfer(\n            [CurrencyTransfer.to_player(\"TOKEN\", player_id=100001, amount=25)],\n            idempotency_key=\"order-2026-09-11-0001\",\n        )\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    },
+    "/warehouse": {
+      "get": {
+        "description": "Показывает доступные позиции на складе гильдии.",
+        "operationId": "getGuildWarehouse",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageSize"
+          },
+          {
+            "$ref": "#/components/parameters/Cursor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "is_open": true,
+                  "items": [
+                    {
+                      "durability": 0,
+                      "item_id": "200001",
+                      "max_durability": 0,
+                      "name": "Тестовый контейнер",
+                      "quantity": 3,
+                      "transfer_restricted": false,
+                      "warehouse_item_id": "700001"
+                    }
+                  ],
+                  "slots_total": 50,
+                  "slots_used": 2
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/Warehouse"
+                }
+              }
+            },
+            "description": "Страница склада.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Посмотреть склад",
+        "tags": [
+          "Склад"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/warehouse?page_size=50' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    page = client.get_warehouse(page_size=50)\n    for item in page.items:\n        print(item.warehouse_item_id, item.name, item.quantity)"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        async for item in client.iter_warehouse():\n            print(item.warehouse_item_id, item.name, item.quantity)\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "guildBearer": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "/api/external/v1"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Товары и другие предметы на складе гильдии.",
+      "name": "Склад"
+    },
+    {
+      "description": "Внутренние валюты гильдии и балансы игроков.",
+      "name": "Валюты"
+    },
+    {
+      "description": "Выдача предметов и переводы внутренней валюты.",
+      "name": "Переводы"
+    },
+    {
+      "description": "История операций со складом и внутренними валютами.",
+      "name": "Активность"
+    }
+  ],
+  "x-atraxis-docs": {
+    "eyebrow": "Интеграции гильдии",
+    "introduction": [
+      "Лидер выпускает приватный токен в разделе «Интеграции гильдии».",
+      "Добавьте токен в свой сервис и передавайте его в заголовке Authorization по HTTPS.",
+      "Назначайте каждому переводу постоянный Idempotency-Key, чтобы безопасно повторить запрос при сбое."
+    ],
+    "notes": [
+      {
+        "Передавать идентификатор гильдии не надо": "API определит её по токену."
+      },
+      "В одном запросе можно выполнить от 1 до 10 переводов. Они выполнятся все вместе или не выполнятся вовсе.",
+      "Суммы передаются целыми числами в строках и не округляются.",
+      "Если сервер ограничил частоту запросов, подождите число секунд из Retry-After и повторите запрос."
+    ],
+    "subtitle": "Выдавайте товары со склада, ведите внутреннюю валюту и проверяйте операции из своего сервиса.",
+    "title": "Подключение лавки, бота или учётной системы"
+  }
+}

@@ -1,0 +1,4 @@
+[mcp_servers.atraxis]
+command = "atraxis-mcp"
+env_vars = ["ATRAXIS_API_TOKEN"]
+
