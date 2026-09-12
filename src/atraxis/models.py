@@ -387,18 +387,21 @@ class ActivityAsset:
     def from_dict(cls, value: object) -> ActivityAsset:
         data = _mapping(value, "activity asset")
         kind = _text(data, "type")
-        if kind not in {"game_item", "credits", "echos", "guild_currency"}:
-            raise ValueError("unknown activity asset type")
-        return cls(
-            type=kind,
-            item_id=_identifier(data["item_id"], "item_id") if "item_id" in data else None,
-            warehouse_item_id=(
-                _identifier(data["warehouse_item_id"], "warehouse_item_id")
-                if "warehouse_item_id" in data
-                else None
-            ),
-            currency_code=_optional_text(data, "currency_code"),
-        )
+        if kind == "game_item":
+            return cls(
+                type=kind,
+                item_id=_identifier(data.get("item_id"), "item_id"),
+                warehouse_item_id=(
+                    _identifier(data["warehouse_item_id"], "warehouse_item_id")
+                    if "warehouse_item_id" in data
+                    else None
+                ),
+            )
+        if kind == "guild_currency":
+            return cls(type=kind, currency_code=_text(data, "currency_code"))
+        if kind in {"credits", "echos"}:
+            return cls(type=kind)
+        raise ValueError("unknown activity asset type")
 
 
 @dataclass(frozen=True, slots=True)
@@ -408,7 +411,6 @@ class ActivityEvent:
     operation_id: str
     kind: str
     source: str
-    direction: str
     from_party: ActivityParty
     to_party: ActivityParty
     asset: ActivityAsset
@@ -429,7 +431,6 @@ class ActivityEvent:
             operation_id=_text(data, "operation_id"),
             kind=_text(data, "kind"),
             source=_text(data, "source"),
-            direction=_text(data, "direction"),
             from_party=ActivityParty.from_dict(data.get("from")),
             to_party=ActivityParty.from_dict(data.get("to")),
             asset=ActivityAsset.from_dict(data.get("asset")),

@@ -41,7 +41,12 @@
             }
           }
         },
-        "description": "JSON-тело превышает 32 КиБ."
+        "description": "JSON-тело превышает 32 КиБ.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "IdempotencyConflict": {
         "content": {
@@ -51,7 +56,12 @@
             }
           }
         },
-        "description": "Ключ уже использован с другим телом или операция ещё выполняется."
+        "description": "Ключ уже использован с другим телом или операция ещё выполняется.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "InvalidJSON": {
         "content": {
@@ -61,7 +71,12 @@
             }
           }
         },
-        "description": "Некорректный JSON или неизвестное поле."
+        "description": "Некорректный JSON или неизвестное поле.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "InvalidPagination": {
         "content": {
@@ -71,7 +86,12 @@
             }
           }
         },
-        "description": "page_size или cursor заданы неверно."
+        "description": "page_size или cursor заданы неверно.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "InvalidPlayerID": {
         "content": {
@@ -81,7 +101,12 @@
             }
           }
         },
-        "description": "player_id должен быть положительным числом."
+        "description": "player_id должен быть положительным числом.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "NotFound": {
         "content": {
@@ -91,7 +116,12 @@
             }
           }
         },
-        "description": "Игрок, валюта или позиция склада не найдены."
+        "description": "Игрок, валюта или позиция склада не найдены.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "Problem": {
         "content": {
@@ -131,6 +161,9 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
           }
         }
       },
@@ -142,7 +175,12 @@
             }
           }
         },
-        "description": "Выдача и переводы временно приостановлены."
+        "description": "Выдача и переводы временно приостановлены.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "Unauthorized": {
         "content": {
@@ -160,6 +198,9 @@
               "example": "Bearer realm=\"guild-api\"",
               "type": "string"
             }
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
           }
         }
       },
@@ -171,7 +212,12 @@
             }
           }
         },
-        "description": "Параметры операции недопустимы."
+        "description": "Параметры операции недопустимы.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       },
       "UnsupportedMediaType": {
         "content": {
@@ -181,7 +227,12 @@
             }
           }
         },
-        "description": "Требуется Content-Type application/json."
+        "description": "Требуется Content-Type application/json.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       }
     },
     "schemas": {
@@ -192,18 +243,12 @@
             "$ref": "#/components/schemas/ActivityAsset"
           },
           "balance_after": {
-            "$ref": "#/components/schemas/NonNegativeAmount"
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Баланс отправителя после операции; для выпуска и погашения — общий выпуск."
           },
           "balance_before": {
-            "$ref": "#/components/schemas/NonNegativeAmount"
-          },
-          "direction": {
-            "description": "Направление относительно гильдии.",
-            "enum": [
-              "in",
-              "out"
-            ],
-            "type": "string"
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Баланс отправителя до операции; для выпуска и погашения — общий выпуск."
           },
           "event_id": {
             "description": "Постоянный идентификатор этой записи для сверки.",
@@ -211,13 +256,15 @@
             "type": "string"
           },
           "fee": {
-            "$ref": "#/components/schemas/NonNegativeAmount"
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Удержанная комиссия."
           },
           "from": {
             "$ref": "#/components/schemas/ActivityParty"
           },
           "gross": {
-            "$ref": "#/components/schemas/Amount"
+            "$ref": "#/components/schemas/Amount",
+            "description": "Количество до удержания комиссии."
           },
           "kind": {
             "description": "Тип движения склада или внутренней валюты.",
@@ -236,7 +283,8 @@
             "type": "integer"
           },
           "net": {
-            "$ref": "#/components/schemas/Amount"
+            "$ref": "#/components/schemas/Amount",
+            "description": "Количество после удержания комиссии."
           },
           "occurred_at": {
             "format": "date-time",
@@ -267,7 +315,6 @@
           "operation_id",
           "kind",
           "source",
-          "direction",
           "from",
           "to",
           "asset",
@@ -279,31 +326,67 @@
         "type": "object"
       },
       "ActivityAsset": {
-        "additionalProperties": false,
-        "properties": {
-          "currency_code": {
-            "$ref": "#/components/schemas/CurrencyCode"
-          },
-          "item_id": {
-            "$ref": "#/components/schemas/DecimalID"
-          },
-          "type": {
-            "enum": [
-              "game_item",
-              "credits",
-              "echos",
-              "guild_currency"
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "item_id": {
+                "$ref": "#/components/schemas/DecimalID"
+              },
+              "type": {
+                "const": "game_item"
+              },
+              "warehouse_item_id": {
+                "$ref": "#/components/schemas/DecimalID"
+              }
+            },
+            "required": [
+              "type",
+              "item_id"
             ],
-            "type": "string"
+            "type": "object"
           },
-          "warehouse_item_id": {
-            "$ref": "#/components/schemas/DecimalID"
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "credits"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "const": "echos"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "currency_code": {
+                "$ref": "#/components/schemas/CurrencyCode"
+              },
+              "type": {
+                "const": "guild_currency"
+              }
+            },
+            "required": [
+              "type",
+              "currency_code"
+            ],
+            "type": "object"
           }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
+        ]
       },
       "ActivityPage": {
         "additionalProperties": false,
@@ -377,7 +460,7 @@
       "Amount": {
         "description": "Целое значение от 1 до 9 000 000 000 000 000.",
         "example": "25",
-        "pattern": "^[1-9][0-9]{0,15}$",
+        "pattern": "^([1-9][0-9]{0,14}|[1-8][0-9]{15}|9000000000000000)$",
         "type": "string"
       },
       "Currency": {
@@ -480,7 +563,7 @@
       "NonNegativeAmount": {
         "description": "Неотрицательное целое значение не больше 9 000 000 000 000 000.",
         "example": "0",
-        "pattern": "^(0|[1-9][0-9]{0,15})$",
+        "pattern": "^(0|[1-9][0-9]{0,14}|[1-8][0-9]{15}|9000000000000000)$",
         "type": "string"
       },
       "Party": {
@@ -797,7 +880,6 @@
                       },
                       "balance_after": "8475",
                       "balance_before": "8500",
-                      "direction": "out",
                       "event_id": "00000000-0000-4000-8000-000000000003",
                       "fee": "0",
                       "from": {
@@ -1109,9 +1191,6 @@
           },
           "422": {
             "$ref": "#/components/responses/Unprocessable"
-          },
-          "423": {
-            "$ref": "#/components/responses/TradeBlocked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

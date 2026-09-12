@@ -14,6 +14,7 @@ from atraxis import (
     CurrencyTransfer,
     ItemTransfer,
 )
+from atraxis.models import ActivityAsset
 
 TOKEN = "agk_example.redacted"
 BASE_URL = "https://example.test/api/external/v1"
@@ -197,7 +198,6 @@ async def test_async_client_and_activity_pagination() -> None:
                         "operation_id": "00000000-0000-4000-8000-000000000002",
                         "kind": "currency_transfer",
                         "source": "api",
-                        "direction": "out",
                         "from": {"type": "guild"},
                         "to": {"type": "player", "player_id": "42"},
                         "asset": {"type": "guild_currency", "currency_code": "TOKEN"},
@@ -238,3 +238,15 @@ def test_transfer_builders_cover_all_public_directions() -> None:
         ("player", "guild"),
         ("player", "player"),
     ]
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"type": "game_item"},
+        {"type": "guild_currency"},
+    ],
+)
+def test_activity_asset_requires_fields_for_its_type(payload: dict[str, str]) -> None:
+    with pytest.raises(ValueError):
+        ActivityAsset.from_dict(payload)

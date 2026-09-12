@@ -50,7 +50,6 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
         "operation_id",
         "kind",
         "source",
-        "direction",
         "from",
         "to",
         "asset",
@@ -61,7 +60,6 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
         "balance_after",
         "leg_index",
     },
-    "ActivityAsset": {"currency_code", "item_id", "type", "warehouse_item_id"},
     "ActivityPage": {"available_since", "items", "next_cursor"},
     "Currency": {
         "code",
@@ -93,6 +91,8 @@ EXPECTED_PROPERTY_SETS = {
 } | {
     frozenset({"amount", "asset", "from", "index", "to"}),
     frozenset({"balance", "code"}),
+    frozenset({"currency_code", "type"}),
+    frozenset({"item_id", "type", "warehouse_item_id"}),
     frozenset({"items"}),
     frozenset({"player_id", "type"}),
     frozenset({"transfers"}),
@@ -165,6 +165,27 @@ def schema_properties(schemas: Mapping[str, Any], name: str) -> set[str]:
     schema = require_mapping(schemas.get(name), name)
     properties = require_mapping(schema.get("properties"), f"{name}.properties")
     return set(properties)
+
+
+def validate_activity_asset(schemas: Mapping[str, Any]) -> None:
+    schema = require_mapping(schemas.get("ActivityAsset"), "ActivityAsset")
+    variants = require_list(schema.get("oneOf"), "ActivityAsset.oneOf")
+    expected = {
+        "game_item": ({"type", "item_id", "warehouse_item_id"}, {"type", "item_id"}),
+        "credits": ({"type"}, {"type"}),
+        "echos": ({"type"}, {"type"}),
+        "guild_currency": ({"type", "currency_code"}, {"type", "currency_code"}),
+    }
+    for index, value in enumerate(variants):
+        variant = require_mapping(value, f"ActivityAsset.oneOf[{index}]")
+        properties = require_mapping(variant.get("properties"), "ActivityAsset.properties")
+        type_schema = require_mapping(properties.get("type"), "ActivityAsset.type")
+        kind = type_schema.get("const")
+        required = set(require_list(variant.get("required"), "ActivityAsset.required"))
+        if not isinstance(kind, str) or expected.pop(kind, None) != (set(properties), required):
+            raise ValueError("ActivityAsset variants do not match the reviewed contract")
+    if expected:
+        raise ValueError("ActivityAsset variants do not match the reviewed contract")
 
 
 def require_string(value: object, name: str) -> str:
@@ -267,6 +288,7 @@ def validate(spec_value: object) -> Mapping[str, Any]:
     for name, fields in EXPECTED_NAMED_SCHEMA_FIELDS.items():
         if schema_properties(schemas, name) != fields:
             raise ValueError("schema fields do not match the reviewed public contract")
+    validate_activity_asset(schemas)
     if not schema_property_sets(spec).issubset(EXPECTED_PROPERTY_SETS):
         raise ValueError("schema fields do not match the reviewed public contract")
     return spec

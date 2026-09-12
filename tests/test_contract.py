@@ -14,7 +14,6 @@ PUBLIC_ACTIVITY_FIELDS = {
     "operation_id",
     "kind",
     "source",
-    "direction",
     "from",
     "to",
     "asset",
@@ -46,6 +45,20 @@ def test_packaged_contract_hash_and_allowlists() -> None:
     assert set(spec["components"]["schemas"]["Activity"]["properties"]) == (
         PUBLIC_ACTIVITY_FIELDS
     )
+
+
+def test_packaged_contract_passes_current_sync_validator(tmp_path: Path) -> None:
+    source = files("atraxis._contract").joinpath("guild-commerce-v1.json")
+    output = tmp_path / "snapshot.json"
+    result = subprocess.run(
+        [sys.executable, "scripts/sync_openapi.py", str(source), "--output", str(output)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert output.read_bytes() == source.read_bytes()
 
 
 def test_sync_validator_rejects_unreviewed_schema_field(tmp_path: Path) -> None:
