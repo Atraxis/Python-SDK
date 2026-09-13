@@ -534,7 +534,7 @@
         "type": "object"
       },
       "CurrencyCode": {
-        "description": "Постоянный код валюты из 1–16 символов.",
+        "description": "Код из 1–16 символов: первая — латинская буква A–Z, остальные — A–Z, цифры или _.",
         "example": "TOKEN",
         "pattern": "^[A-Z][A-Z0-9_]{0,15}$",
         "type": "string"
