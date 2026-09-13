@@ -238,17 +238,19 @@
     "schemas": {
       "Activity": {
         "additionalProperties": false,
+        "description": "Одна часть операции с ценностями гильдии.",
         "properties": {
           "asset": {
-            "$ref": "#/components/schemas/ActivityAsset"
+            "$ref": "#/components/schemas/ActivityAsset",
+            "description": "Какая ценность перемещалась."
           },
           "balance_after": {
             "$ref": "#/components/schemas/NonNegativeAmount",
-            "description": "Баланс отправителя после операции; для выпуска и погашения — общий выпуск."
+            "description": "Баланс стороны списания после операции, если он доступен; для выпуска и погашения — общий выпуск."
           },
           "balance_before": {
             "$ref": "#/components/schemas/NonNegativeAmount",
-            "description": "Баланс отправителя до операции; для выпуска и погашения — общий выпуск."
+            "description": "Баланс стороны списания до операции, если он доступен; для выпуска и погашения — общий выпуск."
           },
           "event_id": {
             "description": "Постоянный идентификатор этой записи для сверки.",
@@ -260,14 +262,15 @@
             "description": "Удержанная комиссия."
           },
           "from": {
-            "$ref": "#/components/schemas/ActivityParty"
+            "$ref": "#/components/schemas/ActivityParty",
+            "description": "Откуда поступила ценность."
           },
           "gross": {
             "$ref": "#/components/schemas/Amount",
             "description": "Количество до удержания комиссии."
           },
           "kind": {
-            "description": "Тип движения склада или внутренней валюты.",
+            "description": "Вид операции: пополнение или выдача склада, выпуск, погашение либо перевод внутренней валюты.",
             "enum": [
               "warehouse_deposit",
               "warehouse_withdrawal",
@@ -287,6 +290,7 @@
             "description": "Количество после удержания комиссии."
           },
           "occurred_at": {
+            "description": "Дата и время операции в UTC.",
             "format": "date-time",
             "type": "string"
           },
@@ -296,7 +300,7 @@
             "type": "string"
           },
           "source": {
-            "description": "Где началась операция: чат, игра, API или системное действие.",
+            "description": "Где началась операция: чат, игровой интерфейс, API или системное действие.",
             "enum": [
               "chat",
               "game",
@@ -306,7 +310,8 @@
             "type": "string"
           },
           "to": {
-            "$ref": "#/components/schemas/ActivityParty"
+            "$ref": "#/components/schemas/ActivityParty",
+            "description": "Куда поступила ценность."
           }
         },
         "required": [
@@ -326,70 +331,87 @@
         "type": "object"
       },
       "ActivityAsset": {
+        "description": "Предмет или валюта, которые перемещались.",
         "oneOf": [
           {
             "additionalProperties": false,
+            "description": "Игровой предмет, перемещённый на склад или со склада.",
             "properties": {
               "item_id": {
-                "$ref": "#/components/schemas/DecimalID"
+                "$ref": "#/components/schemas/DecimalID",
+                "description": "Игровой идентификатор типа предмета."
               },
               "type": {
-                "const": "game_item"
+                "const": "game_item",
+                "description": "Игровой предмет."
               },
               "warehouse_item_id": {
-                "$ref": "#/components/schemas/DecimalID"
+                "$ref": "#/components/schemas/DecimalID",
+                "description": "Позиция склада, если она доступна для этой записи."
               }
             },
             "required": [
               "type",
               "item_id"
             ],
+            "title": "Предмет",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Игровые кредиты.",
             "properties": {
               "type": {
-                "const": "credits"
+                "const": "credits",
+                "description": "Кредиты."
               }
             },
             "required": [
               "type"
             ],
+            "title": "Кредиты",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Игровые Эхоны.",
             "properties": {
               "type": {
-                "const": "echos"
+                "const": "echos",
+                "description": "Эхоны."
               }
             },
             "required": [
               "type"
             ],
+            "title": "Эхоны",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Валюта, созданная гильдией.",
             "properties": {
               "currency_code": {
-                "$ref": "#/components/schemas/CurrencyCode"
+                "$ref": "#/components/schemas/CurrencyCode",
+                "description": "Код внутренней валюты."
               },
               "type": {
-                "const": "guild_currency"
+                "const": "guild_currency",
+                "description": "Внутренняя валюта гильдии."
               }
             },
             "required": [
               "type",
               "currency_code"
             ],
+            "title": "Внутренняя валюта",
             "type": "object"
           }
         ]
       },
       "ActivityPage": {
         "additionalProperties": false,
+        "description": "Одна страница истории операций гильдии.",
         "properties": {
           "available_since": {
             "description": "Начало доступной истории операций.",
@@ -397,6 +419,7 @@
             "type": "string"
           },
           "items": {
+            "description": "Операции на этой странице, от новых к старым.",
             "items": {
               "$ref": "#/components/schemas/Activity"
             },
@@ -414,45 +437,56 @@
         "type": "object"
       },
       "ActivityParty": {
+        "description": "Отправитель или получатель в записи истории.",
         "oneOf": [
           {
             "additionalProperties": false,
+            "description": "Склад предметов или баланс внутренней валюты гильдии.",
             "properties": {
               "type": {
-                "const": "guild"
+                "const": "guild",
+                "description": "Гильдия."
               }
             },
             "required": [
               "type"
             ],
+            "title": "Гильдия",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Выпуск или погашение внутренней валюты.",
             "properties": {
               "type": {
-                "const": "supply"
+                "const": "supply",
+                "description": "Условная сторона выпуска внутренней валюты."
               }
             },
             "required": [
               "type"
             ],
+            "title": "Выпуск валюты",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Игровой аккаунт, участвовавший в операции.",
             "properties": {
               "player_id": {
-                "$ref": "#/components/schemas/DecimalID"
+                "$ref": "#/components/schemas/DecimalID",
+                "description": "Игровой идентификатор игрока."
               },
               "type": {
-                "const": "player"
+                "const": "player",
+                "description": "Игрок."
               }
             },
             "required": [
               "type",
               "player_id"
             ],
+            "title": "Игрок",
             "type": "object"
           }
         ]
@@ -465,9 +499,11 @@
       },
       "Currency": {
         "additionalProperties": false,
+        "description": "Внутренняя валюта гильдии и её текущие остатки.",
         "properties": {
           "code": {
-            "$ref": "#/components/schemas/CurrencyCode"
+            "$ref": "#/components/schemas/CurrencyCode",
+            "description": "Постоянный код этой валюты."
           },
           "name": {
             "description": "Название валюты для игроков.",
@@ -505,8 +541,10 @@
       },
       "CurrencyUpdate": {
         "additionalProperties": false,
+        "description": "Название валюты и разрешение переводов между игроками.",
         "properties": {
           "name": {
+            "description": "Название валюты, которое увидят игроки.",
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
@@ -530,34 +568,42 @@
       },
       "GameItemAsset": {
         "additionalProperties": false,
+        "description": "Конкретная позиция предмета на складе гильдии.",
         "properties": {
           "type": {
-            "const": "game_item"
+            "const": "game_item",
+            "description": "Передайте «game_item» для предмета."
           },
           "warehouse_item_id": {
-            "$ref": "#/components/schemas/DecimalID"
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Идентификатор позиции из ответа GET /warehouse."
           }
         },
         "required": [
           "type",
           "warehouse_item_id"
         ],
+        "title": "Предмет со склада",
         "type": "object"
       },
       "GuildCurrencyAsset": {
         "additionalProperties": false,
+        "description": "Валюта, созданная этой гильдией.",
         "properties": {
           "code": {
-            "$ref": "#/components/schemas/CurrencyCode"
+            "$ref": "#/components/schemas/CurrencyCode",
+            "description": "Код валюты из ответа GET /currencies."
           },
           "type": {
-            "const": "guild_currency"
+            "const": "guild_currency",
+            "description": "Передайте «guild_currency» для внутренней валюты."
           }
         },
         "required": [
           "type",
           "code"
         ],
+        "title": "Внутренняя валюта",
         "type": "object"
       },
       "NonNegativeAmount": {
@@ -567,74 +613,92 @@
         "type": "string"
       },
       "Party": {
+        "description": "Отправитель или получатель перевода.",
         "oneOf": [
           {
             "additionalProperties": false,
+            "description": "Склад предметов или баланс внутренней валюты гильдии.",
             "properties": {
               "type": {
-                "const": "guild"
+                "const": "guild",
+                "description": "Передайте «guild» для гильдии."
               }
             },
             "required": [
               "type"
             ],
+            "title": "Гильдия",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Источник при выпуске и получатель при погашении внутренней валюты.",
             "properties": {
               "type": {
-                "const": "supply"
+                "const": "supply",
+                "description": "Передайте «supply» только для выпуска или погашения валюты."
               }
             },
             "required": [
               "type"
             ],
+            "title": "Выпуск валюты",
             "type": "object"
           },
           {
             "additionalProperties": false,
+            "description": "Игровой аккаунт, участвующий в переводе.",
             "properties": {
               "player_id": {
-                "$ref": "#/components/schemas/DecimalID"
+                "$ref": "#/components/schemas/DecimalID",
+                "description": "Игровой идентификатор игрока."
               },
               "type": {
-                "const": "player"
+                "const": "player",
+                "description": "Передайте «player» для игрока."
               }
             },
             "required": [
               "type",
               "player_id"
             ],
+            "title": "Игрок",
             "type": "object"
           }
         ]
       },
       "PlayerBalances": {
         "additionalProperties": false,
+        "description": "Балансы одного игрока во всех внутренних валютах гильдии.",
         "properties": {
           "balances": {
+            "description": "Баланс игрока в каждой внутренней валюте гильдии.",
             "items": {
               "additionalProperties": false,
+              "description": "Остаток одной внутренней валюты у игрока.",
               "properties": {
                 "balance": {
-                  "$ref": "#/components/schemas/NonNegativeAmount"
+                  "$ref": "#/components/schemas/NonNegativeAmount",
+                  "description": "Текущий баланс игрока. Если операций не было, возвращается «0»."
                 },
                 "code": {
-                  "$ref": "#/components/schemas/CurrencyCode"
+                  "$ref": "#/components/schemas/CurrencyCode",
+                  "description": "Код внутренней валюты."
                 }
               },
               "required": [
                 "code",
                 "balance"
               ],
+              "title": "Баланс валюты",
               "type": "object"
             },
             "maxItems": 100,
             "type": "array"
           },
           "player_id": {
-            "$ref": "#/components/schemas/DecimalID"
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Игрок, чьи балансы возвращены."
           }
         },
         "required": [
@@ -645,23 +709,29 @@
       },
       "Problem": {
         "additionalProperties": false,
+        "description": "Ошибка запроса в едином формате API.",
         "properties": {
           "detail": {
+            "description": "Пояснение, что именно не удалось и что следует проверить.",
             "type": "string"
           },
           "request_id": {
+            "description": "Идентификатор запроса. Передайте его поддержке при обращении.",
             "format": "uuid",
             "type": "string"
           },
           "status": {
+            "description": "HTTP-статус ответа.",
             "maximum": 599,
             "minimum": 400,
             "type": "integer"
           },
           "title": {
+            "description": "Краткое название ошибки.",
             "type": "string"
           },
           "type": {
+            "description": "Постоянный код вида ошибки для обработки в программе.",
             "type": "string"
           }
         },
@@ -675,11 +745,14 @@
       },
       "Transfer": {
         "additionalProperties": false,
+        "description": "Одна передача предмета или внутренней валюты.",
         "properties": {
           "amount": {
-            "$ref": "#/components/schemas/Amount"
+            "$ref": "#/components/schemas/Amount",
+            "description": "Количество строкой. Для уникального предмета — «1», для стака — не больше остатка позиции."
           },
           "asset": {
+            "description": "Что передать — предмет со склада или внутреннюю валюту.",
             "oneOf": [
               {
                 "$ref": "#/components/schemas/GameItemAsset"
@@ -690,10 +763,12 @@
             ]
           },
           "from": {
-            "$ref": "#/components/schemas/Party"
+            "$ref": "#/components/schemas/Party",
+            "description": "Откуда списать ценность."
           },
           "to": {
-            "$ref": "#/components/schemas/Party"
+            "$ref": "#/components/schemas/Party",
+            "description": "Кому зачислить ценность."
           }
         },
         "required": [
@@ -706,6 +781,7 @@
       },
       "TransferResult": {
         "additionalProperties": false,
+        "description": "Результат успешно выполненной операции.",
         "properties": {
           "operation_id": {
             "description": "Общий идентификатор всех частей выполненной операции.",
@@ -713,13 +789,17 @@
             "type": "string"
           },
           "transfers": {
+            "description": "Выполненные передачи в том же порядке, что и в запросе.",
             "items": {
               "additionalProperties": false,
+              "description": "Подтверждение одной части операции.",
               "properties": {
                 "amount": {
-                  "$ref": "#/components/schemas/Amount"
+                  "$ref": "#/components/schemas/Amount",
+                  "description": "Фактически переданное количество."
                 },
                 "asset": {
+                  "description": "Переданная ценность.",
                   "oneOf": [
                     {
                       "$ref": "#/components/schemas/GameItemAsset"
@@ -730,15 +810,18 @@
                   ]
                 },
                 "from": {
-                  "$ref": "#/components/schemas/Party"
+                  "$ref": "#/components/schemas/Party",
+                  "description": "Откуда списана ценность."
                 },
                 "index": {
+                  "description": "Номер передачи в массиве запроса, начиная с 0.",
                   "maximum": 9,
                   "minimum": 0,
                   "type": "integer"
                 },
                 "to": {
-                  "$ref": "#/components/schemas/Party"
+                  "$ref": "#/components/schemas/Party",
+                  "description": "Кому зачислена ценность."
                 }
               },
               "required": [
@@ -748,6 +831,7 @@
                 "to",
                 "amount"
               ],
+              "title": "Выполненная передача",
               "type": "object"
             },
             "maxItems": 10,
@@ -763,8 +847,10 @@
       },
       "Warehouse": {
         "additionalProperties": false,
+        "description": "Одна страница склада гильдии и его общая вместимость.",
         "properties": {
           "items": {
+            "description": "Позиции склада на этой странице.",
             "items": {
               "$ref": "#/components/schemas/WarehouseItem"
             },
@@ -795,6 +881,7 @@
       },
       "WarehouseItem": {
         "additionalProperties": false,
+        "description": "Одна позиция склада, доступная для просмотра или выдачи.",
         "properties": {
           "durability": {
             "description": "Текущая прочность; 0 для предметов без прочности.",
@@ -1047,8 +1134,10 @@
                 },
                 "schema": {
                   "additionalProperties": false,
+                  "description": "Список всех внутренних валют гильдии.",
                   "properties": {
                     "items": {
+                      "description": "Внутренние валюты гильдии.",
                       "items": {
                         "$ref": "#/components/schemas/Currency"
                       },
@@ -1263,8 +1352,10 @@
               },
               "schema": {
                 "additionalProperties": false,
+                "description": "Набор передач, которые нужно выполнить одной операцией.",
                 "properties": {
                   "transfers": {
+                    "description": "От 1 до 10 передач. Если хотя бы одна невозможна, не выполняется ни одна.",
                     "items": {
                       "$ref": "#/components/schemas/Transfer"
                     },
