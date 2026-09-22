@@ -12,6 +12,7 @@ from typing import Any, cast
 
 import httpx
 
+from ._version import PACKAGE_VERSION
 from .errors import AtraxisAPIError, AtraxisResponseError, AtraxisTransportError, Problem
 
 RETRYABLE_STATUSES = frozenset({429, 502, 503, 504})
@@ -81,7 +82,7 @@ def safe_headers(token: str, *, idempotency_key: str | None = None) -> dict[str,
     headers = {
         "Accept": "application/json, application/problem+json",
         "Authorization": f"Bearer {token}",
-        "User-Agent": "atraxis-sdk/0.1.0",
+        "User-Agent": f"atraxis-sdk/{PACKAGE_VERSION}",
     }
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key

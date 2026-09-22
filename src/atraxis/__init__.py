@@ -1,5 +1,6 @@
 """Typed clients and models for the public Atraxis API."""
 
+from ._version import PACKAGE_VERSION
 from .client import AsyncAtraxisClient, AtraxisClient
 from .errors import AtraxisAPIError, AtraxisError, AtraxisResponseError, AtraxisTransportError
 from .models import (
@@ -34,4 +35,4 @@ __all__ = [
     "WarehousePage",
 ]
 
-__version__ = "0.1.0"
+__version__ = PACKAGE_VERSION

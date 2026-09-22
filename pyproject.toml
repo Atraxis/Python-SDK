@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "atraxis-sdk"
-version = "0.1.1"
+version = "0.1.2"
 description = "Official Python SDK and local MCP server for the Atraxis public API"
 readme = "README.md"
 requires-python = ">=3.10"

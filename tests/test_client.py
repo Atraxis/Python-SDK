@@ -13,6 +13,7 @@ from atraxis import (
     AtraxisResponseError,
     CurrencyTransfer,
     ItemTransfer,
+    __version__,
 )
 from atraxis.models import ActivityAsset
 
@@ -60,6 +61,7 @@ def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> Non
 
     assert [item.warehouse_item_id for item in items] == [700001, 700001]
     assert requests[0].headers["Authorization"] == f"Bearer {TOKEN}"
+    assert requests[0].headers["User-Agent"] == f"atraxis-sdk/{__version__}"
     assert requests[0].url.params["page_size"] == "25"
     assert requests[1].url.params["cursor"] == "next"
 
