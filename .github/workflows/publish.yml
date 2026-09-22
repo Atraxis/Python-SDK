@@ -1,19 +1,83 @@
 name: Publish to PyPI
 
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: pypi-publish
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.release.outputs.publish }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - id: release
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+          from urllib.error import HTTPError
+          from urllib.parse import quote
+          from urllib.request import Request, urlopen
+
+          project = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))["project"]
+          version = project["version"]
+          if not isinstance(version, str) or not version.strip():
+              raise RuntimeError("project.version must be a non-empty string")
+
+          url = f"https://pypi.org/pypi/atraxis-sdk/{quote(version, safe='')}/json"
+          request = Request(url, headers={"User-Agent": "atraxis-sdk-release-check"})
+          try:
+              with urlopen(request, timeout=20) as response:
+                  if response.status != 200:
+                      raise RuntimeError(f"PyPI returned HTTP {response.status}")
+                  exists = True
+          except HTTPError as error:
+              if error.code != 404:
+                  raise
+              exists = False
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"version={version}\n")
+              output.write(f"publish={'false' if exists else 'true'}\n")
+
+          if exists:
+              print(f"atraxis-sdk {version} is already published; nothing to do")
+          else:
+              print(f"atraxis-sdk {version} will be published")
+          PY
+
   build:
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
@@ -21,20 +85,22 @@ jobs:
       - run: python -m build
       - uses: actions/upload-artifact@v5
         with:
-          name: python-package-distributions
+          name: python-package-distributions-${{ needs.prepare.outputs.version }}
           path: dist/
+          retention-days: 1
 
   publish:
-    needs: build
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/atraxis-sdk
+      url: https://pypi.org/project/atraxis-sdk/${{ needs.prepare.outputs.version }}/
     permissions:
       id-token: write
     steps:
       - uses: actions/download-artifact@v6
         with:
-          name: python-package-distributions
+          name: python-package-distributions-${{ needs.prepare.outputs.version }}
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
