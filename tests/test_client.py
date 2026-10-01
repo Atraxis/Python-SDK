@@ -15,7 +15,7 @@ from atraxis import (
     ItemTransfer,
     __version__,
 )
-from atraxis.models import ActivityAsset
+from atraxis.models import ActivityAsset, ActivityEvent
 
 TOKEN = "agk_example.redacted"
 BASE_URL = "https://example.test/api/external/v1"
@@ -30,10 +30,49 @@ def warehouse(*, next_cursor: str | None = None) -> dict[str, object]:
                 "warehouse_item_id": "700001",
                 "item_id": "200001",
                 "name": "Test item",
-                "quantity": 2,
+                "item_type": "Оружие",
+                "set_type": "Тяжёлый",
+                "rarity": "Эпический",
+                "tier": 3,
+                "quantity": 1,
                 "durability": 3,
                 "max_durability": 5,
                 "transfer_restricted": False,
+                "is_unique": True,
+                "instance": {
+                    "kind": "equipment",
+                    "level": 30,
+                    "quality": "III",
+                    "base_upgrade_chance_percent": 98.5,
+                    "upgrade_chance_percent": 91,
+                    "upgrade_level": 4,
+                    "stats_modifier_percent": 10,
+                    "power_percent": 87.5,
+                    "awakened": False,
+                    "awakening_failures": 0,
+                    "combat_stats": {
+                        "attack": 22,
+                        "strength": 0,
+                        "dexterity": 0,
+                        "intelligence": 0,
+                        "armor": 0,
+                        "stamina": 0,
+                        "base_attack": 20,
+                        "base_strength": 0,
+                        "base_dexterity": 0,
+                        "base_intelligence": 0,
+                        "base_armor": 0,
+                        "base_stamina": 0,
+                    },
+                    "passive_skills": [
+                        {
+                            "slot": 1,
+                            "skill_id": "18",
+                            "name": "Регенерация",
+                            "base_modifier_percent": 2.5,
+                        }
+                    ],
+                },
                 "future_additive_field": "accepted",
             }
         ],
@@ -60,6 +99,12 @@ def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> Non
         assert TOKEN not in repr(client)
 
     assert [item.warehouse_item_id for item in items] == [700001, 700001]
+    assert items[0].is_unique is True
+    assert items[0].condition is None
+    assert items[0].instance is not None
+    assert items[0].instance.combat_stats is not None
+    assert items[0].instance.combat_stats.attack == 22
+    assert items[0].instance.passive_skills[0].skill_id == 18
     assert requests[0].headers["Authorization"] == f"Bearer {TOKEN}"
     assert requests[0].headers["User-Agent"] == f"atraxis-sdk/{__version__}"
     assert requests[0].url.params["page_size"] == "25"
@@ -198,16 +243,21 @@ async def test_async_client_and_activity_pagination() -> None:
                         "event_id": "00000000-0000-4000-8000-000000000001",
                         "occurred_at": "2026-09-12T10:00:00Z",
                         "operation_id": "00000000-0000-4000-8000-000000000002",
-                        "kind": "currency_transfer",
-                        "source": "api",
-                        "from": {"type": "guild"},
-                        "to": {"type": "player", "player_id": "42"},
-                        "asset": {"type": "guild_currency", "currency_code": "TOKEN"},
-                        "gross": "25",
+                        "kind": "warehouse_deposit",
+                        "source": "chat",
+                        "deposit_method": "tagged_transfer",
+                        "from": {"type": "player", "player_id": "42"},
+                        "to": {"type": "guild"},
+                        "asset": {
+                            "type": "game_item",
+                            "item_id": "200001",
+                            "warehouse_item_id": "700001",
+                        },
+                        "gross": "1",
                         "fee": "0",
-                        "net": "25",
-                        "balance_before": "100",
-                        "balance_after": "75",
+                        "net": "1",
+                        "balance_before": "1",
+                        "balance_after": "0",
                         "leg_index": 0,
                     }
                 ]
@@ -220,9 +270,39 @@ async def test_async_client_and_activity_pagination() -> None:
         with pytest.raises(ValueError):
             await client.get_balances(0)
 
-    assert events[0].net == 25
-    assert events[0].to_party.player_id == 42
+    assert events[0].net == 1
+    assert events[0].from_party.player_id == 42
+    assert events[0].deposit_method == "tagged_transfer"
+    assert events[0].asset.warehouse_item_id == 700001
     assert requests[0].url.path.endswith("/activity")
+
+
+@pytest.mark.parametrize(
+    ("kind", "deposit_method"),
+    [
+        ("warehouse_deposit", "unknown"),
+        ("warehouse_withdrawal", "guild_deposit"),
+    ],
+)
+def test_activity_rejects_invalid_deposit_method(kind: str, deposit_method: str) -> None:
+    with pytest.raises(ValueError):
+        ActivityEvent.from_dict(
+            {
+                "event_id": "00000000-0000-4000-8000-000000000001",
+                "occurred_at": "2026-10-01T10:00:00Z",
+                "operation_id": "00000000-0000-4000-8000-000000000002",
+                "kind": kind,
+                "source": "chat",
+                "deposit_method": deposit_method,
+                "from": {"type": "player", "player_id": "42"},
+                "to": {"type": "guild"},
+                "asset": {"type": "game_item", "item_id": "200001"},
+                "gross": "1",
+                "fee": "0",
+                "net": "1",
+                "leg_index": 0,
+            }
+        )
 
 
 def test_transfer_builders_cover_all_public_directions() -> None:

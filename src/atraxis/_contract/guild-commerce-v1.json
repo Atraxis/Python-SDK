@@ -252,6 +252,14 @@
             "$ref": "#/components/schemas/NonNegativeAmount",
             "description": "Баланс стороны списания до операции, если он доступен; для выпуска и погашения — общий выпуск."
           },
+          "deposit_method": {
+            "description": "Как предмет поступил на склад: guild_deposit — обычное пополнение, в том числе команда «Внести»; tagged_transfer — команда «Передать {ТЕГ}». Поле есть только у новых пополнений склада. У старых операций способ не сохранялся, поэтому поле отсутствует.",
+            "enum": [
+              "guild_deposit",
+              "tagged_transfer"
+            ],
+            "type": "string"
+          },
           "event_id": {
             "description": "Постоянный идентификатор этой записи для сверки.",
             "format": "uuid",
@@ -300,7 +308,7 @@
             "type": "string"
           },
           "source": {
-            "description": "Где началась операция: чат, игровой интерфейс, API или системное действие.",
+            "description": "Где началась операция: chat — чат Авроры; game — страница гильдии или основной бот; api — публичный API; system — системное действие.",
             "enum": [
               "chat",
               "game",
@@ -879,20 +887,245 @@
         ],
         "type": "object"
       },
+      "WarehouseCombatStats": {
+        "additionalProperties": false,
+        "description": "Базовые и эффективные боевые характеристики экземпляра экипировки.",
+        "properties": {
+          "armor": {
+            "description": "Эффективная броня.",
+            "type": "integer"
+          },
+          "attack": {
+            "description": "Эффективная атака.",
+            "type": "integer"
+          },
+          "base_armor": {
+            "description": "Базовая броня до модификатора.",
+            "type": "integer"
+          },
+          "base_attack": {
+            "description": "Базовая атака до модификатора.",
+            "type": "integer"
+          },
+          "base_dexterity": {
+            "description": "Базовая ловкость до модификатора.",
+            "type": "integer"
+          },
+          "base_intelligence": {
+            "description": "Базовый интеллект до модификатора.",
+            "type": "integer"
+          },
+          "base_stamina": {
+            "description": "Базовая выносливость до модификатора.",
+            "type": "integer"
+          },
+          "base_strength": {
+            "description": "Базовая сила до модификатора.",
+            "type": "integer"
+          },
+          "dexterity": {
+            "description": "Эффективная ловкость.",
+            "type": "integer"
+          },
+          "intelligence": {
+            "description": "Эффективный интеллект.",
+            "type": "integer"
+          },
+          "stamina": {
+            "description": "Эффективная выносливость.",
+            "type": "integer"
+          },
+          "strength": {
+            "description": "Эффективная сила.",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attack",
+          "strength",
+          "dexterity",
+          "intelligence",
+          "armor",
+          "stamina",
+          "base_attack",
+          "base_strength",
+          "base_dexterity",
+          "base_intelligence",
+          "base_armor",
+          "base_stamina"
+        ],
+        "type": "object"
+      },
+      "WarehouseFishDetails": {
+        "additionalProperties": false,
+        "description": "Игровые свойства отдельного улова.",
+        "properties": {
+          "biome": {
+            "description": "Стабильный код биома поимки.",
+            "type": "string"
+          },
+          "caught_at": {
+            "description": "Время поимки.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "Время полной потери свежести.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "freshness_percent": {
+            "description": "Текущая свежесть в процентах на момент ответа.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "region": {
+            "description": "Регион поимки.",
+            "type": "string"
+          },
+          "source_kind": {
+            "description": "Тип игрового источника улова.",
+            "enum": [
+              "spot",
+              "school"
+            ],
+            "type": "string"
+          },
+          "species_key": {
+            "description": "Код вида рыбы.",
+            "type": "string"
+          },
+          "was_school_catch": {
+            "description": "Получен ли улов из рыбной фермы.",
+            "type": "boolean"
+          },
+          "weight_grams": {
+            "description": "Вес улова в граммах.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "species_key",
+          "weight_grams",
+          "was_school_catch"
+        ],
+        "type": "object"
+      },
+      "WarehouseFishingRodStats": {
+        "additionalProperties": false,
+        "description": "Характеристики уникальной удочки.",
+        "properties": {
+          "base_rarity_bonus_percent": {
+            "description": "Базовый бонус редкости улова в процентах.",
+            "type": "number"
+          },
+          "base_speed_bonus_percent": {
+            "description": "Базовый бонус скорости рыбалки в процентах.",
+            "type": "number"
+          },
+          "double_catch_chance_percent": {
+            "description": "Шанс двойного улова в процентах.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "rarity_bonus_percent": {
+            "description": "Эффективный бонус редкости улова в процентах.",
+            "type": "number"
+          },
+          "speed_bonus_percent": {
+            "description": "Эффективный бонус скорости рыбалки в процентах.",
+            "type": "number"
+          },
+          "stats_modifier_percent": {
+            "description": "Модификатор бонусов рыбалки в процентах.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "speed_bonus_percent",
+          "rarity_bonus_percent",
+          "base_speed_bonus_percent",
+          "base_rarity_bonus_percent",
+          "stats_modifier_percent",
+          "double_catch_chance_percent"
+        ],
+        "type": "object"
+      },
+      "WarehouseGatheringStats": {
+        "additionalProperties": false,
+        "description": "Характеристики инструмента собирателя.",
+        "properties": {
+          "base_rarity_bonus_percent": {
+            "description": "Базовый бонус редкости добычи в процентах.",
+            "type": "number"
+          },
+          "base_speed_bonus_percent": {
+            "description": "Базовый бонус скорости добычи в процентах.",
+            "type": "number"
+          },
+          "max_resource_tier": {
+            "description": "Максимальный доступный тир ресурса.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "rarity_bonus_percent": {
+            "description": "Эффективный бонус редкости добычи в процентах.",
+            "type": "number"
+          },
+          "speed_bonus_percent": {
+            "description": "Эффективный бонус скорости добычи в процентах.",
+            "type": "number"
+          },
+          "stats_modifier_percent": {
+            "description": "Модификатор бонусов добычи в процентах.",
+            "type": "number"
+          }
+        },
+        "required": [
+          "max_resource_tier",
+          "speed_bonus_percent",
+          "rarity_bonus_percent",
+          "base_speed_bonus_percent",
+          "base_rarity_bonus_percent",
+          "stats_modifier_percent"
+        ],
+        "type": "object"
+      },
       "WarehouseItem": {
         "additionalProperties": false,
-        "description": "Одна позиция склада, доступная для просмотра или выдачи.",
+        "description": "Одна позиция склада. warehouse_item_id указывает на эту позицию, item_id — на общий тип предмета, а is_unique показывает, хранится ли здесь отдельный уникальный экземпляр.",
         "properties": {
+          "condition": {
+            "$ref": "#/components/schemas/WarehouseItemCondition",
+            "description": "Прочность предмета с указанием единицы измерения."
+          },
           "durability": {
-            "description": "Текущая прочность; 0 для предметов без прочности.",
+            "deprecated": true,
+            "description": "Сохранено для совместимости. Актуальная прочность и её единица указаны в condition.",
             "type": "integer"
+          },
+          "instance": {
+            "$ref": "#/components/schemas/WarehouseItemInstance",
+            "description": "Игровые характеристики уникального экземпляра; отсутствует у обычной позиции."
+          },
+          "is_unique": {
+            "description": "true, если позиция хранит отдельный уникальный экземпляр; иначе false.",
+            "type": "boolean"
           },
           "item_id": {
             "$ref": "#/components/schemas/DecimalID",
-            "description": "Игровой идентификатор типа предмета."
+            "description": "Игровой идентификатор общего типа предмета; может совпадать у разных экземпляров."
+          },
+          "item_type": {
+            "description": "Игровая категория предмета, например «Оружие» или «Артефакт».",
+            "type": "string"
           },
           "max_durability": {
-            "description": "Максимальная прочность; 0 для предметов без прочности.",
+            "deprecated": true,
+            "description": "Сохранено для совместимости. Максимальная прочность и её единица указаны в condition.",
             "type": "integer"
           },
           "name": {
@@ -900,8 +1133,26 @@
             "type": "string"
           },
           "quantity": {
-            "description": "Доступное количество.",
+            "description": "Доступное количество; для уникального экземпляра равно 1.",
             "minimum": 1,
+            "type": "integer"
+          },
+          "rarity": {
+            "description": "Редкость предмета; пустая строка означает, что редкость не задана.",
+            "type": "string"
+          },
+          "set_type": {
+            "description": "Весовая категория комплекта. Поле есть только у подходящей экипировки.",
+            "enum": [
+              "Лёгкий",
+              "Средний",
+              "Тяжёлый"
+            ],
+            "type": "string"
+          },
+          "tier": {
+            "description": "Тир предмета; 0, если у предмета нет тира.",
+            "minimum": 0,
             "type": "integer"
           },
           "transfer_restricted": {
@@ -910,17 +1161,251 @@
           },
           "warehouse_item_id": {
             "$ref": "#/components/schemas/DecimalID",
-            "description": "Идентификатор этой позиции склада. Используется в переводе предмета."
+            "description": "Идентификатор конкретной позиции склада или уникального экземпляра. Используется в переводе предмета."
           }
         },
         "required": [
           "warehouse_item_id",
           "item_id",
           "name",
+          "item_type",
+          "rarity",
+          "tier",
           "quantity",
           "durability",
           "max_durability",
-          "transfer_restricted"
+          "transfer_restricted",
+          "is_unique"
+        ],
+        "type": "object"
+      },
+      "WarehouseItemCondition": {
+        "additionalProperties": false,
+        "description": "Текущая и максимальная прочность предмета с указанием единицы измерения.",
+        "properties": {
+          "current": {
+            "description": "Текущее значение прочности.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "maximum": {
+            "description": "Максимальное значение прочности.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "unit": {
+            "description": "percent для артефактов, points для предметов с абсолютной прочностью.",
+            "enum": [
+              "percent",
+              "points"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "current",
+          "maximum",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "WarehouseItemInstance": {
+        "additionalProperties": false,
+        "description": "Характеристики конкретного уникального предмета, которые нужны для его отображения и оценки. Служебные игровые данные в ответ не входят.",
+        "properties": {
+          "artifact_enabled": {
+            "description": "Включён ли уникальный артефакт. Если поле не сохранено, артефакт считается включённым.",
+            "type": "boolean"
+          },
+          "awakened": {
+            "description": "Пробуждён ли предмет.",
+            "type": "boolean"
+          },
+          "awakening_failures": {
+            "description": "Число неудачных попыток пробуждения, влияющее на следующую попытку.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "base_upgrade_chance_percent": {
+            "description": "Базовый шанс следующего улучшения в процентах.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "combat_stats": {
+            "$ref": "#/components/schemas/WarehouseCombatStats",
+            "description": "Боевые характеристики экипировки."
+          },
+          "fish": {
+            "$ref": "#/components/schemas/WarehouseFishDetails",
+            "description": "Игровые свойства отдельного улова."
+          },
+          "fishing_rod": {
+            "$ref": "#/components/schemas/WarehouseFishingRodStats",
+            "description": "Параметры удочки."
+          },
+          "gathering": {
+            "$ref": "#/components/schemas/WarehouseGatheringStats",
+            "description": "Параметры инструмента собирателя."
+          },
+          "journal": {
+            "$ref": "#/components/schemas/WarehouseJournalDetails",
+            "description": "Состояние и заполнение журнала."
+          },
+          "kind": {
+            "description": "Вид уникального предмета.",
+            "enum": [
+              "equipment",
+              "gather_tool",
+              "fishing_rod",
+              "shield",
+              "fish",
+              "artifact",
+              "journal",
+              "other"
+            ],
+            "type": "string"
+          },
+          "level": {
+            "description": "Уровень экземпляра, если он участвует в механике предмета.",
+            "type": "integer"
+          },
+          "passive_skills": {
+            "description": "Пассивные навыки, вставленные в экземпляр.",
+            "items": {
+              "$ref": "#/components/schemas/WarehousePassiveSkill"
+            },
+            "maxItems": 2,
+            "type": "array"
+          },
+          "power_percent": {
+            "description": "Текущая мощность предмета в процентах.",
+            "type": "number"
+          },
+          "quality": {
+            "description": "Качество экипировки или инструмента.",
+            "enum": [
+              "I",
+              "II",
+              "III"
+            ],
+            "type": "string"
+          },
+          "shield_abilities": {
+            "description": "Слоты умений генератора щита.",
+            "items": {
+              "$ref": "#/components/schemas/WarehouseShieldAbility"
+            },
+            "maxItems": 2,
+            "type": "array"
+          },
+          "stats_modifier_percent": {
+            "description": "Модификатор боевых характеристик в процентах.",
+            "type": "number"
+          },
+          "upgrade_chance_percent": {
+            "description": "Текущий шанс следующего улучшения в процентах.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "upgrade_level": {
+            "description": "Текущий уровень улучшения предмета.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "WarehouseJournalDetails": {
+        "additionalProperties": false,
+        "description": "Состояние уникального журнала.",
+        "properties": {
+          "fill_percent": {
+            "description": "Заполнение журнала в процентах.",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "state": {
+            "description": "Стадия заполнения журнала.",
+            "enum": [
+              "empty",
+              "filling",
+              "filled",
+              "unknown"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "fill_percent"
+        ],
+        "type": "object"
+      },
+      "WarehousePassiveSkill": {
+        "additionalProperties": false,
+        "description": "Пассивный навык, принадлежащий конкретному экземпляру предмета.",
+        "properties": {
+          "base_modifier_percent": {
+            "description": "Базовый модификатор навыка в процентах до уровня игрока-получателя.",
+            "type": "number"
+          },
+          "name": {
+            "description": "Название пассивного навыка.",
+            "type": "string"
+          },
+          "skill_id": {
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Игровой идентификатор пассивного навыка."
+          },
+          "slot": {
+            "description": "Первый или второй слот пассивного навыка.",
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slot",
+          "skill_id",
+          "name",
+          "base_modifier_percent"
+        ],
+        "type": "object"
+      },
+      "WarehouseShieldAbility": {
+        "additionalProperties": false,
+        "description": "Один слот умения уникального генератора щита.",
+        "properties": {
+          "ability_id": {
+            "description": "Стабильный код выбранного умения; отсутствует у пустого слота.",
+            "type": "string"
+          },
+          "ability_name": {
+            "description": "Название выбранного умения; отсутствует у пустого слота.",
+            "type": "string"
+          },
+          "level": {
+            "description": "Уровень умения в слоте.",
+            "maximum": 10,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "slot": {
+            "description": "Номер слота умения.",
+            "maximum": 2,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slot",
+          "level"
         ],
         "type": "object"
       }
@@ -937,13 +1422,13 @@
   "info": {
     "description": "Управление складом и внутренними валютами гильдии из бота, сайта или учётной системы.",
     "title": "API гильдии Atraxis",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
     "/activity": {
       "get": {
-        "description": "Возвращает движения ценностей гильдии от новых к старым. next_cursor загружает следующую страницу.",
+        "description": "Возвращает операции гильдии от новых к старым. Для пополнений deposit_method показывает, поступил ли предмет обычным способом или через команду «Передать {ТЕГ}». asset.warehouse_item_id связывает операцию с конкретной позицией склада. Сохраняйте обработанные операции по event_id: available_since показывает начало доступной истории, а next_cursor загружает следующую страницу. Налоговые начисления учитываются отдельно и в эту историю не входят.",
         "operationId": "listGuildActivity",
         "parameters": [
           {
@@ -962,26 +1447,28 @@
                   "items": [
                     {
                       "asset": {
-                        "currency_code": "TOKEN",
-                        "type": "guild_currency"
+                        "item_id": "200001",
+                        "type": "game_item",
+                        "warehouse_item_id": "700001"
                       },
-                      "balance_after": "8475",
-                      "balance_before": "8500",
+                      "balance_after": "1",
+                      "balance_before": "3",
+                      "deposit_method": "tagged_transfer",
                       "event_id": "00000000-0000-4000-8000-000000000003",
                       "fee": "0",
                       "from": {
-                        "type": "guild"
-                      },
-                      "gross": "25",
-                      "kind": "currency_transfer",
-                      "leg_index": 0,
-                      "net": "25",
-                      "occurred_at": "2026-09-12T12:30:00Z",
-                      "operation_id": "00000000-0000-4000-8000-000000000002",
-                      "source": "api",
-                      "to": {
                         "player_id": "100001",
                         "type": "player"
+                      },
+                      "gross": "2",
+                      "kind": "warehouse_deposit",
+                      "leg_index": 0,
+                      "net": "2",
+                      "occurred_at": "2026-09-12T12:30:00Z",
+                      "operation_id": "00000000-0000-4000-8000-000000000002",
+                      "source": "chat",
+                      "to": {
+                        "type": "guild"
                       }
                     }
                   ]
@@ -1024,12 +1511,12 @@
           {
             "label": "Python · sync",
             "lang": "Python",
-            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    for event in client.iter_activity():\n        print(event.occurred_at, event.kind, event.net)"
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    for event in client.iter_activity():\n        print(event.occurred_at, event.kind, event.deposit_method, event.net)"
           },
           {
             "label": "Python · async",
             "lang": "Python",
-            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        async for event in client.iter_activity():\n            print(event.occurred_at, event.kind, event.net)\n\nasyncio.run(main())"
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        async for event in client.iter_activity():\n            print(event.occurred_at, event.kind, event.deposit_method, event.net)\n\nasyncio.run(main())"
           }
         ]
       }
@@ -1474,7 +1961,7 @@
     },
     "/warehouse": {
       "get": {
-        "description": "Возвращает заполнение и позиции склада. Для выдачи используйте warehouse_item_id.",
+        "description": "Возвращает заполнение и содержимое склада. warehouse_item_id указывает на конкретную позицию, а item_id — на общий тип предмета. Чтобы показать покупателю характеристики уникального предмета, используйте instance и condition. Для выдачи предмета передавайте warehouse_item_id.",
         "operationId": "getGuildWarehouse",
         "parameters": [
           {
@@ -1492,16 +1979,47 @@
                   "items": [
                     {
                       "durability": 0,
+                      "instance": {
+                        "awakened": false,
+                        "awakening_failures": 0,
+                        "base_upgrade_chance_percent": 98.5,
+                        "combat_stats": {
+                          "armor": 0,
+                          "attack": 22,
+                          "base_armor": 0,
+                          "base_attack": 20,
+                          "base_dexterity": 0,
+                          "base_intelligence": 0,
+                          "base_stamina": 0,
+                          "base_strength": 0,
+                          "dexterity": 0,
+                          "intelligence": 0,
+                          "stamina": 0,
+                          "strength": 0
+                        },
+                        "kind": "equipment",
+                        "level": 30,
+                        "power_percent": 87.5,
+                        "quality": "III",
+                        "stats_modifier_percent": 10,
+                        "upgrade_chance_percent": 91,
+                        "upgrade_level": 4
+                      },
+                      "is_unique": true,
                       "item_id": "200001",
+                      "item_type": "Оружие",
                       "max_durability": 0,
-                      "name": "Тестовый контейнер",
-                      "quantity": 3,
+                      "name": "Тестовый клинок",
+                      "quantity": 1,
+                      "rarity": "Эпический",
+                      "set_type": "Тяжёлый",
+                      "tier": 3,
                       "transfer_restricted": false,
                       "warehouse_item_id": "700001"
                     }
                   ],
                   "slots_total": 50,
-                  "slots_used": 2
+                  "slots_used": 1
                 },
                 "schema": {
                   "$ref": "#/components/schemas/Warehouse"

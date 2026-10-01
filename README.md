@@ -21,6 +21,9 @@ with AtraxisClient("agk_example.redacted") as client:
     for item in client.iter_warehouse():
         print(item.warehouse_item_id, item.name, item.quantity)
 
+        if item.instance and item.instance.kind == "equipment":
+            print(item.instance.level, item.instance.quality, item.instance.combat_stats)
+
     result = client.transfer(
         [CurrencyTransfer.to_player("TOKEN", player_id=100001, amount=25)],
         idempotency_key="order-2026-09-12-0001",
@@ -38,7 +41,7 @@ from atraxis import AsyncAtraxisClient
 async def main() -> None:
     async with AsyncAtraxisClient("agk_example.redacted") as client:
         async for event in client.iter_activity():
-            print(event.occurred_at, event.kind, event.net)
+            print(event.occurred_at, event.kind, event.deposit_method, event.net)
 
 
 asyncio.run(main())
@@ -59,6 +62,14 @@ asyncio.run(main())
 Все суммы представлены в Python как `int`, а по сети передаются десятичными строками. Модели
 неизменяемы. Новые необязательные поля ответа не ломают клиент, но обязательные поля всегда
 проверяются.
+
+У предмета на складе два идентификатора: `item_id` обозначает общий тип предмета,
+а `warehouse_item_id` — конкретную позицию, которую нужно передать при выдаче. Для
+уникальной позиции `is_unique` равен `True`, а `instance` содержит характеристики именно
+этого экземпляра: боевые параметры и улучшения экипировки, бонусы инструментов и удочек,
+умения щита, свойства улова, состояние артефакта или журнала. В `condition` указаны
+прочность и её единица — `percent` или `points`. Поля `durability` и `max_durability`
+сохранены для совместимости со старыми подключениями.
 
 ### Переводы
 
@@ -105,6 +116,17 @@ problem response и `request_id`.
 или членство в выбранной гильдии.
 
 Через API их можно только выдавать со склада игрокам. Списать их у игрока через API нельзя.
+
+Для учёта пополнений читайте `iter_activity()`. В новых операциях `warehouse_deposit`
+поле `deposit_method` равно `guild_deposit` для обычного пополнения, в том числе команды
+«Внести», и `tagged_transfer` для команды «Передать {ТЕГ}». Поле `source` уточняет канал:
+`chat` — чат Авроры, `game` — страница гильдии или основной бот. Через
+`asset.warehouse_item_id` операцию можно связать с позицией из `iter_warehouse()`.
+
+Сохраняйте обработанные операции по `event_id`. `available_since` показывает начало
+истории, которая ещё доступна на сервере. У старых операций `deposit_method` равен `None`,
+поскольку раньше способ пополнения не сохранялся. Налоговые начисления учитываются отдельно
+и в этой истории операций не возвращаются.
 
 ## Подключение к Codex и Claude Code
 

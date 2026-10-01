@@ -41,7 +41,16 @@ EXPECTED_SCHEMAS = {
     "Transfer",
     "TransferResult",
     "Warehouse",
+    "WarehouseCombatStats",
+    "WarehouseFishDetails",
+    "WarehouseFishingRodStats",
+    "WarehouseGatheringStats",
     "WarehouseItem",
+    "WarehouseItemCondition",
+    "WarehouseItemInstance",
+    "WarehouseJournalDetails",
+    "WarehousePassiveSkill",
+    "WarehouseShieldAbility",
 }
 EXPECTED_NAMED_SCHEMA_FIELDS = {
     "Activity": {
@@ -50,6 +59,7 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
         "operation_id",
         "kind",
         "source",
+        "deposit_method",
         "from",
         "to",
         "asset",
@@ -76,19 +86,89 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
     "Transfer": {"amount", "asset", "from", "to"},
     "TransferResult": {"operation_id", "transfers"},
     "Warehouse": {"items", "next_cursor", "slots_total", "slots_used"},
+    "WarehouseCombatStats": {
+        "armor",
+        "attack",
+        "base_armor",
+        "base_attack",
+        "base_dexterity",
+        "base_intelligence",
+        "base_stamina",
+        "base_strength",
+        "dexterity",
+        "intelligence",
+        "stamina",
+        "strength",
+    },
+    "WarehouseFishDetails": {
+        "biome",
+        "caught_at",
+        "expires_at",
+        "freshness_percent",
+        "region",
+        "source_kind",
+        "species_key",
+        "was_school_catch",
+        "weight_grams",
+    },
+    "WarehouseFishingRodStats": {
+        "base_rarity_bonus_percent",
+        "base_speed_bonus_percent",
+        "double_catch_chance_percent",
+        "rarity_bonus_percent",
+        "speed_bonus_percent",
+        "stats_modifier_percent",
+    },
+    "WarehouseGatheringStats": {
+        "base_rarity_bonus_percent",
+        "base_speed_bonus_percent",
+        "max_resource_tier",
+        "rarity_bonus_percent",
+        "speed_bonus_percent",
+        "stats_modifier_percent",
+    },
     "WarehouseItem": {
+        "condition",
         "durability",
+        "instance",
+        "is_unique",
         "item_id",
+        "item_type",
         "max_durability",
         "name",
         "quantity",
+        "rarity",
+        "set_type",
+        "tier",
         "transfer_restricted",
         "warehouse_item_id",
     },
+    "WarehouseItemCondition": {"current", "maximum", "unit"},
+    "WarehouseItemInstance": {
+        "artifact_enabled",
+        "awakened",
+        "awakening_failures",
+        "base_upgrade_chance_percent",
+        "combat_stats",
+        "fish",
+        "fishing_rod",
+        "gathering",
+        "journal",
+        "kind",
+        "level",
+        "passive_skills",
+        "power_percent",
+        "quality",
+        "shield_abilities",
+        "stats_modifier_percent",
+        "upgrade_chance_percent",
+        "upgrade_level",
+    },
+    "WarehouseJournalDetails": {"fill_percent", "state"},
+    "WarehousePassiveSkill": {"base_modifier_percent", "name", "skill_id", "slot"},
+    "WarehouseShieldAbility": {"ability_id", "ability_name", "level", "slot"},
 }
-EXPECTED_PROPERTY_SETS = {
-    frozenset(fields) for fields in EXPECTED_NAMED_SCHEMA_FIELDS.values()
-} | {
+EXPECTED_PROPERTY_SETS = {frozenset(fields) for fields in EXPECTED_NAMED_SCHEMA_FIELDS.values()} | {
     frozenset({"amount", "asset", "from", "index", "to"}),
     frozenset({"balance", "code"}),
     frozenset({"currency_code", "type"}),
@@ -115,10 +195,7 @@ EXPECTED_GUIDE_IDS = (
 )
 EXPECTED_TOOL_LINKS = {
     "python-sdk": "https://github.com/Atraxis/Python-SDK",
-    "mcp": (
-        "https://github.com/Atraxis/Python-SDK"
-        "#подключение-к-codex-и-claude-code"
-    ),
+    "mcp": ("https://github.com/Atraxis/Python-SDK#подключение-к-codex-и-claude-code"),
 }
 
 
@@ -220,9 +297,7 @@ def validate_documentation(spec: Mapping[str, Any]) -> None:
     guide_items = require_list(guides.get("items"), "x-atraxis-docs.guides.items")
     if len(guide_items) != len(EXPECTED_GUIDE_IDS):
         raise ValueError("documentation guides do not match the reviewed contract")
-    for index, (value, expected_id) in enumerate(
-        zip(guide_items, EXPECTED_GUIDE_IDS, strict=True)
-    ):
+    for index, (value, expected_id) in enumerate(zip(guide_items, EXPECTED_GUIDE_IDS, strict=True)):
         guide = require_mapping(value, f"guide {index}")
         if set(guide) != {"id", "title", "description"}:
             raise ValueError("documentation guide fields do not match the reviewed contract")

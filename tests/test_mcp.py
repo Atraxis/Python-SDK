@@ -45,7 +45,7 @@ async def test_mcp_contract_tool_runs_through_real_client_session() -> None:
 
     assert result.is_error is False
     assert result.structured_content is not None
-    assert result.structured_content["version"] == "1.0.0"
+    assert result.structured_content["version"] == "1.1.0"
 
     assert endpoint.is_error is False
     assert endpoint.structured_content is not None

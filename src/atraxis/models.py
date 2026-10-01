@@ -6,6 +6,7 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
+from math import isfinite
 from typing import Any
 
 MAX_AMOUNT = 9_000_000_000_000_000
@@ -40,11 +41,61 @@ def _optional_text(data: Mapping[str, Any], name: str) -> str | None:
     return value
 
 
+def _string(data: Mapping[str, Any], name: str) -> str:
+    value = data.get(name)
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return value
+
+
 def _integer(data: Mapping[str, Any], name: str, *, minimum: int = 0) -> int:
     value = data.get(name)
     if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
         raise ValueError(f"{name} must be an integer >= {minimum}")
     return value
+
+
+def _optional_integer(
+    data: Mapping[str, Any], name: str, *, minimum: int | None = None
+) -> int | None:
+    value = data.get(name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer")
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{name} must be an integer >= {minimum}")
+    return int(value)
+
+
+def _number(
+    data: Mapping[str, Any],
+    name: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float:
+    value = data.get(name)
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not isfinite(value):
+        raise ValueError(f"{name} must be a finite number")
+    parsed = float(value)
+    if minimum is not None and parsed < minimum:
+        raise ValueError(f"{name} must be a number >= {minimum}")
+    if maximum is not None and parsed > maximum:
+        raise ValueError(f"{name} must be a number <= {maximum}")
+    return parsed
+
+
+def _optional_number(
+    data: Mapping[str, Any],
+    name: str,
+    *,
+    minimum: float | None = None,
+    maximum: float | None = None,
+) -> float | None:
+    if data.get(name) is None:
+        return None
+    return _number(data, name, minimum=minimum, maximum=maximum)
 
 
 def _amount(data: Mapping[str, Any], name: str, *, minimum: int = 0) -> int:
@@ -64,6 +115,12 @@ def _boolean(data: Mapping[str, Any], name: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{name} must be a boolean")
     return value
+
+
+def _optional_boolean(data: Mapping[str, Any], name: str) -> bool | None:
+    if data.get(name) is None:
+        return None
+    return _boolean(data, name)
 
 
 def _identifier(value: object, name: str) -> int:
@@ -88,6 +145,276 @@ def _validate_player_id(value: int) -> int:
 
 
 @dataclass(frozen=True, slots=True)
+class WarehouseItemCondition:
+    current: float
+    maximum: float
+    unit: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseItemCondition:
+        data = _mapping(value, "warehouse item condition")
+        unit = _text(data, "unit")
+        if unit not in {"percent", "points"}:
+            raise ValueError("unknown warehouse item condition unit")
+        current = _number(data, "current", minimum=0)
+        maximum = _number(data, "maximum", minimum=0)
+        if maximum <= 0 or current > maximum:
+            raise ValueError("warehouse item condition is outside the public range")
+        return cls(current=current, maximum=maximum, unit=unit)
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseCombatStats:
+    attack: int
+    strength: int
+    dexterity: int
+    intelligence: int
+    armor: int
+    stamina: int
+    base_attack: int
+    base_strength: int
+    base_dexterity: int
+    base_intelligence: int
+    base_armor: int
+    base_stamina: int
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseCombatStats:
+        data = _mapping(value, "warehouse combat stats")
+        return cls(**{name: _integer(data, name) for name in cls.__dataclass_fields__})
+
+
+@dataclass(frozen=True, slots=True)
+class WarehousePassiveSkill:
+    slot: int
+    skill_id: int
+    name: str
+    base_modifier_percent: float
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehousePassiveSkill:
+        data = _mapping(value, "warehouse passive skill")
+        slot = _integer(data, "slot", minimum=1)
+        if slot > 2:
+            raise ValueError("passive skill slot must be 1 or 2")
+        return cls(
+            slot=slot,
+            skill_id=_identifier(data.get("skill_id"), "skill_id"),
+            name=_text(data, "name"),
+            base_modifier_percent=_number(data, "base_modifier_percent"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseGatheringStats:
+    max_resource_tier: int
+    speed_bonus_percent: float
+    rarity_bonus_percent: float
+    base_speed_bonus_percent: float
+    base_rarity_bonus_percent: float
+    stats_modifier_percent: float
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseGatheringStats:
+        data = _mapping(value, "warehouse gathering stats")
+        return cls(
+            max_resource_tier=_integer(data, "max_resource_tier", minimum=1),
+            speed_bonus_percent=_number(data, "speed_bonus_percent"),
+            rarity_bonus_percent=_number(data, "rarity_bonus_percent"),
+            base_speed_bonus_percent=_number(data, "base_speed_bonus_percent"),
+            base_rarity_bonus_percent=_number(data, "base_rarity_bonus_percent"),
+            stats_modifier_percent=_number(data, "stats_modifier_percent"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseFishingRodStats:
+    speed_bonus_percent: float
+    rarity_bonus_percent: float
+    base_speed_bonus_percent: float
+    base_rarity_bonus_percent: float
+    stats_modifier_percent: float
+    double_catch_chance_percent: float
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseFishingRodStats:
+        data = _mapping(value, "warehouse fishing rod stats")
+        return cls(
+            speed_bonus_percent=_number(data, "speed_bonus_percent"),
+            rarity_bonus_percent=_number(data, "rarity_bonus_percent"),
+            base_speed_bonus_percent=_number(data, "base_speed_bonus_percent"),
+            base_rarity_bonus_percent=_number(data, "base_rarity_bonus_percent"),
+            stats_modifier_percent=_number(data, "stats_modifier_percent"),
+            double_catch_chance_percent=_number(
+                data, "double_catch_chance_percent", minimum=0, maximum=100
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseShieldAbility:
+    slot: int
+    level: int
+    ability_id: str | None = None
+    ability_name: str | None = None
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseShieldAbility:
+        data = _mapping(value, "warehouse shield ability")
+        slot = _integer(data, "slot", minimum=1)
+        level = _integer(data, "level")
+        if slot > 2 or level > 10:
+            raise ValueError("shield ability is outside the public range")
+        return cls(
+            slot=slot,
+            level=level,
+            ability_id=_optional_text(data, "ability_id"),
+            ability_name=_optional_text(data, "ability_name"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseFishDetails:
+    species_key: str
+    weight_grams: int
+    was_school_catch: bool
+    caught_at: datetime | None = None
+    expires_at: datetime | None = None
+    freshness_percent: float | None = None
+    region: str | None = None
+    biome: str | None = None
+    source_kind: str | None = None
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseFishDetails:
+        data = _mapping(value, "warehouse fish details")
+        caught_at = _optional_text(data, "caught_at")
+        expires_at = _optional_text(data, "expires_at")
+        source_kind = _optional_text(data, "source_kind")
+        if source_kind not in {None, "spot", "school"}:
+            raise ValueError("unknown fishing source kind")
+        return cls(
+            species_key=_string(data, "species_key"),
+            weight_grams=_integer(data, "weight_grams"),
+            was_school_catch=_boolean(data, "was_school_catch"),
+            caught_at=datetime.fromisoformat(caught_at.replace("Z", "+00:00"))
+            if caught_at
+            else None,
+            expires_at=datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            if expires_at
+            else None,
+            freshness_percent=_optional_number(data, "freshness_percent", minimum=0, maximum=100),
+            region=_optional_text(data, "region"),
+            biome=_optional_text(data, "biome"),
+            source_kind=source_kind,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseJournalDetails:
+    state: str
+    fill_percent: float
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseJournalDetails:
+        data = _mapping(value, "warehouse journal details")
+        state = _text(data, "state")
+        if state not in {"empty", "filling", "filled", "unknown"}:
+            raise ValueError("unknown journal state")
+        return cls(
+            state=state,
+            fill_percent=_number(data, "fill_percent", minimum=0, maximum=100),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseItemInstance:
+    kind: str
+    level: int | None = None
+    quality: str | None = None
+    base_upgrade_chance_percent: float | None = None
+    upgrade_chance_percent: float | None = None
+    upgrade_level: int | None = None
+    stats_modifier_percent: float | None = None
+    power_percent: float | None = None
+    awakened: bool | None = None
+    awakening_failures: int | None = None
+    combat_stats: WarehouseCombatStats | None = None
+    passive_skills: tuple[WarehousePassiveSkill, ...] = ()
+    gathering: WarehouseGatheringStats | None = None
+    fishing_rod: WarehouseFishingRodStats | None = None
+    shield_abilities: tuple[WarehouseShieldAbility, ...] = ()
+    fish: WarehouseFishDetails | None = None
+    artifact_enabled: bool | None = None
+    journal: WarehouseJournalDetails | None = None
+
+    @classmethod
+    def from_dict(cls, value: object) -> WarehouseItemInstance:
+        data = _mapping(value, "warehouse item instance")
+        kind = _text(data, "kind")
+        if kind not in {
+            "equipment",
+            "gather_tool",
+            "fishing_rod",
+            "shield",
+            "fish",
+            "artifact",
+            "journal",
+            "other",
+        }:
+            raise ValueError("unknown warehouse item instance kind")
+        quality = _optional_text(data, "quality")
+        if quality not in {None, "I", "II", "III"}:
+            raise ValueError("unknown warehouse item quality")
+        passive_skills = data.get("passive_skills", [])
+        shield_abilities = data.get("shield_abilities", [])
+        return cls(
+            kind=kind,
+            level=_optional_integer(data, "level"),
+            quality=quality,
+            base_upgrade_chance_percent=_optional_number(
+                data, "base_upgrade_chance_percent", minimum=0, maximum=100
+            ),
+            upgrade_chance_percent=_optional_number(
+                data, "upgrade_chance_percent", minimum=0, maximum=100
+            ),
+            upgrade_level=_optional_integer(data, "upgrade_level", minimum=0),
+            stats_modifier_percent=_optional_number(data, "stats_modifier_percent"),
+            power_percent=_optional_number(data, "power_percent"),
+            awakened=_optional_boolean(data, "awakened"),
+            awakening_failures=_optional_integer(data, "awakening_failures", minimum=0),
+            combat_stats=(
+                WarehouseCombatStats.from_dict(data["combat_stats"])
+                if "combat_stats" in data
+                else None
+            ),
+            passive_skills=tuple(
+                WarehousePassiveSkill.from_dict(item)
+                for item in _items(passive_skills, "passive_skills")
+            ),
+            gathering=(
+                WarehouseGatheringStats.from_dict(data["gathering"])
+                if "gathering" in data
+                else None
+            ),
+            fishing_rod=(
+                WarehouseFishingRodStats.from_dict(data["fishing_rod"])
+                if "fishing_rod" in data
+                else None
+            ),
+            shield_abilities=tuple(
+                WarehouseShieldAbility.from_dict(item)
+                for item in _items(shield_abilities, "shield_abilities")
+            ),
+            fish=WarehouseFishDetails.from_dict(data["fish"]) if "fish" in data else None,
+            artifact_enabled=_optional_boolean(data, "artifact_enabled"),
+            journal=(
+                WarehouseJournalDetails.from_dict(data["journal"]) if "journal" in data else None
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class WarehouseItem:
     warehouse_item_id: int
     item_id: int
@@ -96,10 +423,21 @@ class WarehouseItem:
     durability: int
     max_durability: int
     transfer_restricted: bool
+    item_type: str | None = None
+    set_type: str | None = None
+    rarity: str | None = None
+    tier: int | None = None
+    is_unique: bool = False
+    condition: WarehouseItemCondition | None = None
+    instance: WarehouseItemInstance | None = None
 
     @classmethod
     def from_dict(cls, value: object) -> WarehouseItem:
         data = _mapping(value, "warehouse item")
+        instance = WarehouseItemInstance.from_dict(data["instance"]) if "instance" in data else None
+        is_unique = _boolean(data, "is_unique") if "is_unique" in data else instance is not None
+        if instance is not None and not is_unique:
+            raise ValueError("warehouse item instance requires is_unique=true")
         return cls(
             warehouse_item_id=_identifier(data.get("warehouse_item_id"), "warehouse_item_id"),
             item_id=_identifier(data.get("item_id"), "item_id"),
@@ -108,6 +446,15 @@ class WarehouseItem:
             durability=_integer(data, "durability"),
             max_durability=_integer(data, "max_durability"),
             transfer_restricted=_boolean(data, "transfer_restricted"),
+            item_type=_text(data, "item_type") if "item_type" in data else None,
+            set_type=_optional_text(data, "set_type"),
+            rarity=_string(data, "rarity") if "rarity" in data else None,
+            tier=_optional_integer(data, "tier", minimum=0),
+            is_unique=is_unique,
+            condition=(
+                WarehouseItemCondition.from_dict(data["condition"]) if "condition" in data else None
+            ),
+            instance=instance,
         )
 
 
@@ -420,16 +767,23 @@ class ActivityEvent:
     balance_before: int | None
     balance_after: int | None
     leg_index: int
+    deposit_method: str | None = None
 
     @classmethod
     def from_dict(cls, value: object) -> ActivityEvent:
         data = _mapping(value, "activity")
         occurred_at = datetime.fromisoformat(_text(data, "occurred_at").replace("Z", "+00:00"))
+        kind = _text(data, "kind")
+        deposit_method = _optional_text(data, "deposit_method")
+        if deposit_method not in {None, "guild_deposit", "tagged_transfer"}:
+            raise ValueError("unknown warehouse deposit method")
+        if kind != "warehouse_deposit" and deposit_method is not None:
+            raise ValueError("deposit_method is only valid for warehouse deposits")
         return cls(
             event_id=_text(data, "event_id"),
             occurred_at=occurred_at,
             operation_id=_text(data, "operation_id"),
-            kind=_text(data, "kind"),
+            kind=kind,
             source=_text(data, "source"),
             from_party=ActivityParty.from_dict(data.get("from")),
             to_party=ActivityParty.from_dict(data.get("to")),
@@ -440,6 +794,7 @@ class ActivityEvent:
             balance_before=_amount(data, "balance_before") if "balance_before" in data else None,
             balance_after=_amount(data, "balance_after") if "balance_after" in data else None,
             leg_index=_integer(data, "leg_index"),
+            deposit_method=deposit_method,
         )
 
 

@@ -14,6 +14,7 @@ PUBLIC_ACTIVITY_FIELDS = {
     "operation_id",
     "kind",
     "source",
+    "deposit_method",
     "from",
     "to",
     "asset",
@@ -34,17 +35,42 @@ def test_packaged_contract_hash_and_allowlists() -> None:
 
     spec = json.loads(payload)
     assert set(spec["components"]["schemas"]["WarehouseItem"]["properties"]) == {
-        "warehouse_item_id",
+        "condition",
+        "durability",
+        "instance",
+        "is_unique",
         "item_id",
+        "item_type",
+        "max_durability",
         "name",
         "quantity",
-        "durability",
-        "max_durability",
+        "rarity",
+        "set_type",
+        "tier",
         "transfer_restricted",
+        "warehouse_item_id",
     }
-    assert set(spec["components"]["schemas"]["Activity"]["properties"]) == (
-        PUBLIC_ACTIVITY_FIELDS
-    )
+    assert set(spec["components"]["schemas"]["WarehouseItemInstance"]["properties"]) == {
+        "artifact_enabled",
+        "awakened",
+        "awakening_failures",
+        "base_upgrade_chance_percent",
+        "combat_stats",
+        "fish",
+        "fishing_rod",
+        "gathering",
+        "journal",
+        "kind",
+        "level",
+        "passive_skills",
+        "power_percent",
+        "quality",
+        "shield_abilities",
+        "stats_modifier_percent",
+        "upgrade_chance_percent",
+        "upgrade_level",
+    }
+    assert set(spec["components"]["schemas"]["Activity"]["properties"]) == (PUBLIC_ACTIVITY_FIELDS)
 
 
 def test_packaged_contract_passes_current_sync_validator(tmp_path: Path) -> None:
@@ -64,9 +90,7 @@ def test_packaged_contract_passes_current_sync_validator(tmp_path: Path) -> None
 def test_sync_validator_rejects_unreviewed_schema_field(tmp_path: Path) -> None:
     payload = files("atraxis._contract").joinpath("guild-commerce-v1.json").read_text()
     spec = deepcopy(json.loads(payload))
-    spec["components"]["schemas"]["Activity"]["properties"]["unexpected"] = {
-        "type": "string"
-    }
+    spec["components"]["schemas"]["Activity"]["properties"]["unexpected"] = {"type": "string"}
     source = tmp_path / "contract.json"
     source.write_text(json.dumps(spec), encoding="utf-8")
 
