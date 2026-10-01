@@ -11,8 +11,21 @@
       }
     },
     "parameters": {
+      "ActivityOrder": {
+        "description": "Порядок записей. По умолчанию сначала возвращаются новые.",
+        "in": "query",
+        "name": "order",
+        "schema": {
+          "default": "desc",
+          "enum": [
+            "desc",
+            "asc"
+          ],
+          "type": "string"
+        }
+      },
       "AfterEventID": {
-        "description": "event_id последней обработанной записи. Возвращаются только более новые записи, без повторного включения указанной. Нельзя использовать вместе с cursor.",
+        "description": "event_id последней обработанной записи. Возвращаются только более новые записи, без повторного включения указанной. Можно использовать вместе с cursor из ответа на запрос с теми же after_event_id и order.",
         "in": "query",
         "name": "after_event_id",
         "schema": {
@@ -265,6 +278,28 @@
             "$ref": "#/components/headers/RequestID"
           }
         }
+      },
+      "WarehouseSnapshotChanged": {
+        "content": {
+          "application/problem+json": {
+            "example": {
+              "detail": "Склад изменился во время загрузки. Начните получение склада заново.",
+              "request_id": "00000000-0000-4000-8000-000000000001",
+              "status": 409,
+              "title": "Склад изменился",
+              "type": "urn:atraxis:problem:warehouse-snapshot-changed"
+            },
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Склад изменился между страницами. Начните получение склада заново.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
       }
     },
     "schemas": {
@@ -285,7 +320,7 @@
             "description": "Баланс стороны списания до операции, если он доступен; для выпуска и погашения — общий выпуск."
           },
           "deposit_method": {
-            "description": "Как предмет поступил на склад: guild_deposit — обычное пополнение, в том числе команда «Внести»; tagged_transfer — команда «Передать {ТЕГ}». Поле есть только у новых пополнений склада. У старых операций способ не сохранялся, поэтому поле отсутствует.",
+            "description": "Как предмет поступил на склад: guild_deposit — обычное пополнение, в том числе команда «Внести»; tagged_transfer — команда «Передать {ТЕГ}». Поле есть у новых пополнений игроками этими способами. У старых и системных пополнений способ команды не определён, поэтому поле отсутствует.",
             "enum": [
               "guild_deposit",
               "tagged_transfer"
@@ -352,6 +387,10 @@
           "to": {
             "$ref": "#/components/schemas/ActivityParty",
             "description": "Куда поступила ценность."
+          },
+          "warehouse_item": {
+            "$ref": "#/components/schemas/ActivityWarehouseItem",
+            "description": "Снимок позиции склада для новых пополнений и выдач. В старых записях отсутствует, потому что точные исторические характеристики не восстанавливаются задним числом."
           }
         },
         "required": [
@@ -459,7 +498,7 @@
             "type": "string"
           },
           "items": {
-            "description": "Без after_event_id операции идут от новых к старым. С after_event_id — от старых к новым, чтобы последняя запись страницы стала следующей контрольной точкой.",
+            "description": "Операции в порядке, заданном order. after_event_id только ограничивает выборку более новыми записями и не меняет порядок.",
             "items": {
               "$ref": "#/components/schemas/Activity"
             },
@@ -467,7 +506,7 @@
             "type": "array"
           },
           "next_cursor": {
-            "description": "Курсор следующей страницы при чтении истории без after_event_id. В режиме after_event_id поле отсутствует: для следующей страницы передайте event_id последней полученной записи.",
+            "description": "Курсор следующей страницы с теми же order и after_event_id. Поле отсутствует, когда страница последняя.",
             "type": "string"
           }
         },
@@ -530,6 +569,95 @@
             "type": "object"
           }
         ]
+      },
+      "ActivityWarehouseItem": {
+        "additionalProperties": false,
+        "description": "Состояние конкретной позиции склада во время передачи. Оно не меняется после записи, даже если предмет позднее выдан или удалён со склада.",
+        "properties": {
+          "condition": {
+            "$ref": "#/components/schemas/WarehouseItemCondition",
+            "description": "Прочность предмета во время операции."
+          },
+          "durability": {
+            "deprecated": true,
+            "description": "Сохранено для совместимости; используйте condition.",
+            "type": "integer"
+          },
+          "instance": {
+            "$ref": "#/components/schemas/WarehouseItemInstance",
+            "description": "Характеристики уникального экземпляра во время операции."
+          },
+          "is_unique": {
+            "description": "Хранила ли позиция отдельный уникальный экземпляр.",
+            "type": "boolean"
+          },
+          "item_id": {
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Игровой идентификатор общего типа предмета."
+          },
+          "item_type": {
+            "description": "Игровая категория предмета.",
+            "type": "string"
+          },
+          "max_durability": {
+            "deprecated": true,
+            "description": "Сохранено для совместимости; используйте condition.",
+            "type": "integer"
+          },
+          "name": {
+            "description": "Название предмета, которое видит игрок.",
+            "type": "string"
+          },
+          "quantity_after": {
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Количество в этой позиции после передачи."
+          },
+          "quantity_before": {
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Количество в этой позиции до передачи."
+          },
+          "rarity": {
+            "description": "Редкость предмета.",
+            "type": "string"
+          },
+          "set_type": {
+            "description": "Весовая категория комплекта, если она применима.",
+            "enum": [
+              "Лёгкий",
+              "Средний",
+              "Тяжёлый"
+            ],
+            "type": "string"
+          },
+          "tier": {
+            "description": "Тир предмета.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "transfer_restricted": {
+            "description": "Было ли ограничение передачи у позиции во время операции.",
+            "type": "boolean"
+          },
+          "warehouse_item_id": {
+            "$ref": "#/components/schemas/DecimalID",
+            "description": "Позиция склада, с которой связана эта запись."
+          }
+        },
+        "required": [
+          "warehouse_item_id",
+          "item_id",
+          "name",
+          "item_type",
+          "rarity",
+          "tier",
+          "quantity_before",
+          "quantity_after",
+          "durability",
+          "max_durability",
+          "transfer_restricted",
+          "is_unique"
+        ],
+        "type": "object"
       },
       "Amount": {
         "description": "Целое значение от 1 до 9 000 000 000 000 000.",
@@ -889,6 +1017,11 @@
         "additionalProperties": false,
         "description": "Одна страница склада гильдии и его общая вместимость.",
         "properties": {
+          "activity_checkpoint": {
+            "description": "Последняя доступная запись истории на момент начала снимка. После загрузки склада используйте её как after_event_id, чтобы получать последующие передачи.",
+            "format": "uuid",
+            "type": "string"
+          },
           "items": {
             "description": "Позиции склада на этой странице.",
             "items": {
@@ -898,7 +1031,7 @@
             "type": "array"
           },
           "next_cursor": {
-            "description": "Курсор следующей страницы. Поле отсутствует на последней странице.",
+            "description": "Курсор следующей страницы того же снимка. Поле отсутствует на последней странице. Если склад изменился, запрос с этим курсором вернёт 409.",
             "type": "string"
           },
           "slots_total": {
@@ -910,11 +1043,16 @@
             "description": "Сколько ячеек сейчас занято.",
             "minimum": 0,
             "type": "integer"
+          },
+          "snapshot_revision": {
+            "$ref": "#/components/schemas/NonNegativeAmount",
+            "description": "Ревизия склада, общая для всех страниц одного снимка. Курсор уже содержит её, поэтому отдельно передавать значение не требуется."
           }
         },
         "required": [
           "slots_used",
           "slots_total",
+          "snapshot_revision",
           "items"
         ],
         "type": "object"
@@ -1454,13 +1592,13 @@
   "info": {
     "description": "Управление складом и внутренними валютами гильдии из бота, сайта или учётной системы.",
     "title": "API гильдии Atraxis",
-    "version": "1.2.0"
+    "version": "1.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
     "/activity": {
       "get": {
-        "description": "Без after_event_id возвращает историю от новых операций к старым; cursor загружает следующую страницу этой истории. Если передать event_id ранее обработанной записи как after_event_id, ответ содержит только более новые операции, не включая указанную запись, и располагает их от старых к новым. После обработки страницы сохраните event_id последней записи и повторите запрос с ним: хранить прежние записи и удалять повторы не требуется. cursor и after_event_id нельзя передавать вместе. Для пополнений deposit_method показывает, поступил ли предмет обычным способом или через команду «Передать {ТЕГ}», а asset.warehouse_item_id связывает операцию с конкретной позицией склада. available_since показывает начало доступной истории. Налоговые начисления учитываются отдельно и в эту историю не входят.",
+        "description": "По умолчанию возвращает историю от новых операций к старым. Параметр order явно задаёт порядок, а after_event_id только исключает указанную и все более старые записи — он не меняет порядок. cursor можно использовать вместе с after_event_id для продолжения той же выборки. Для последовательной синхронизации используйте order=asc, пройдите все страницы по next_cursor и сохраните event_id последней обработанной записи. Для пополнений deposit_method показывает, поступил ли предмет обычным способом или через команду «Передать {ТЕГ}», а warehouse_item сохраняет характеристики конкретного экземпляра и количества до и после операции. В старых записях warehouse_item может отсутствовать. available_since показывает начало доступной истории. Налоговые начисления учитываются отдельно и в эту историю не входят.",
         "operationId": "listGuildActivity",
         "parameters": [
           {
@@ -1471,6 +1609,9 @@
           },
           {
             "$ref": "#/components/parameters/AfterEventID"
+          },
+          {
+            "$ref": "#/components/parameters/ActivityOrder"
           }
         ],
         "responses": {
@@ -1486,7 +1627,7 @@
                         "type": "game_item",
                         "warehouse_item_id": "700001"
                       },
-                      "balance_after": "1",
+                      "balance_after": "2",
                       "balance_before": "3",
                       "deposit_method": "tagged_transfer",
                       "event_id": "00000000-0000-4000-8000-000000000003",
@@ -1495,15 +1636,35 @@
                         "player_id": "100001",
                         "type": "player"
                       },
-                      "gross": "2",
+                      "gross": "1",
                       "kind": "warehouse_deposit",
                       "leg_index": 0,
-                      "net": "2",
+                      "net": "1",
                       "occurred_at": "2026-09-12T12:30:00Z",
                       "operation_id": "00000000-0000-4000-8000-000000000002",
                       "source": "chat",
                       "to": {
                         "type": "guild"
+                      },
+                      "warehouse_item": {
+                        "durability": 0,
+                        "instance": {
+                          "kind": "equipment",
+                          "level": 30,
+                          "quality": "III"
+                        },
+                        "is_unique": true,
+                        "item_id": "200001",
+                        "item_type": "Оружие",
+                        "max_durability": 0,
+                        "name": "Тестовый клинок",
+                        "quantity_after": "1",
+                        "quantity_before": "0",
+                        "rarity": "Эпический",
+                        "set_type": "Тяжёлый",
+                        "tier": 3,
+                        "transfer_restricted": false,
+                        "warehouse_item_id": "700001"
                       }
                     }
                   ]
@@ -1541,17 +1702,17 @@
           {
             "label": "cURL",
             "lang": "cURL",
-            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/activity?page_size=50&after_event_id=00000000-0000-4000-8000-000000000003' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/activity?page_size=50&order=asc&after_event_id=00000000-0000-4000-8000-000000000003' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
           },
           {
             "label": "Python · sync",
             "lang": "Python",
-            "source": "from atraxis import AtraxisClient\n\nlast_event_id = \"00000000-0000-4000-8000-000000000003\"\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    page = client.get_activity(after_event_id=last_event_id)\n    for event in page.items:\n        print(event.occurred_at, event.kind, event.deposit_method, event.net)\n    if page.items:\n        last_event_id = page.items[-1].event_id"
+            "source": "from atraxis import AtraxisClient\n\nlast_event_id = \"00000000-0000-4000-8000-000000000003\"\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    for event in client.iter_new_activity(after_event_id=last_event_id):\n        print(event.occurred_at, event.kind, event.deposit_method, event.net)\n        last_event_id = event.event_id"
           },
           {
             "label": "Python · async",
             "lang": "Python",
-            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    last_event_id = \"00000000-0000-4000-8000-000000000003\"\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        page = await client.get_activity(after_event_id=last_event_id)\n        for event in page.items:\n            print(event.occurred_at, event.kind, event.deposit_method, event.net)\n        if page.items:\n            last_event_id = page.items[-1].event_id\n\nasyncio.run(main())"
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    last_event_id = \"00000000-0000-4000-8000-000000000003\"\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        async for event in client.iter_new_activity(after_event_id=last_event_id):\n            print(event.occurred_at, event.kind, event.deposit_method, event.net)\n            last_event_id = event.event_id\n\nasyncio.run(main())"
           }
         ]
       }
@@ -1996,7 +2157,7 @@
     },
     "/warehouse": {
       "get": {
-        "description": "Возвращает заполнение и содержимое склада. warehouse_item_id указывает на конкретную позицию, а item_id — на общий тип предмета. Чтобы показать покупателю характеристики уникального предмета, используйте instance и condition. Для выдачи предмета передавайте warehouse_item_id.",
+        "description": "Возвращает заполнение и содержимое склада. warehouse_item_id указывает на конкретную позицию, а item_id — на общий тип предмета. Чтобы показать покупателю характеристики уникального предмета, используйте instance и condition. Для выдачи предмета передавайте warehouse_item_id. Все страницы относятся к одной ревизии склада. Если склад изменится во время загрузки, следующий запрос вернёт 409 — начните получение склада заново.",
         "operationId": "getGuildWarehouse",
         "parameters": [
           {
@@ -2011,6 +2172,7 @@
             "content": {
               "application/json": {
                 "example": {
+                  "activity_checkpoint": "00000000-0000-4000-8000-000000000003",
                   "items": [
                     {
                       "durability": 0,
@@ -2054,7 +2216,8 @@
                     }
                   ],
                   "slots_total": 50,
-                  "slots_used": 1
+                  "slots_used": 1,
+                  "snapshot_revision": "42"
                 },
                 "schema": {
                   "$ref": "#/components/schemas/Warehouse"
@@ -2070,6 +2233,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/WarehouseSnapshotChanged"
           },
           "422": {
             "$ref": "#/components/responses/InvalidPagination"
@@ -2170,8 +2336,8 @@
       "В одном запросе выполняется 1–10 переводов — все вместе либо ни одного.",
       "Суммы передаются целыми числами в строках и не округляются.",
       "JSON-тело — до 32 КиБ. Неизвестные поля запрещены.",
-      "Лимит: 100 запросов в минуту с IP и 60 на гильдию. После 429 ждите Retry-After.",
-      "Для регулярной проверки новых операций сохраняйте только последний обработанный event_id и передавайте его как after_event_id.",
+      "Лимит для истории: 300 запросов в минуту с IP и 60 на гильдию. Для остальных методов — 100 с IP и 60 на гильдию. После 429 ждите Retry-After.",
+      "Для регулярной проверки новых операций используйте order=asc, сохраняйте последний обработанный event_id и передавайте его как after_event_id.",
       "Каждый ответ содержит X-Request-ID для обращения в поддержку."
     ],
     "subtitle": "Проверяйте склад, выдавайте товары и ведите внутреннюю валюту из своего сервиса.",

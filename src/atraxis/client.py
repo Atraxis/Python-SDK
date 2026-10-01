@@ -17,7 +17,7 @@ from ._transport import (
     object_payload,
     response_request_id,
 )
-from .errors import AtraxisResponseError
+from .errors import AtraxisAPIError, AtraxisResponseError
 from .models import (
     CURRENCY_CODE_PATTERN,
     ActivityEvent,
@@ -28,6 +28,7 @@ from .models import (
     TransferResult,
     WarehouseItem,
     WarehousePage,
+    WarehouseSnapshot,
 )
 
 DEFAULT_BASE_URL = "https://atraxisonline.com/api/external/v1"
@@ -100,10 +101,12 @@ def _activity_page_params(
     page_size: int,
     cursor: str | None,
     after_event_id: str | None,
+    order: str,
 ) -> dict[str, QueryValue]:
-    if cursor and after_event_id:
-        raise ValueError("cursor and after_event_id cannot be used together")
+    if order not in {"desc", "asc"}:
+        raise ValueError("order must be 'desc' or 'asc'")
     params = _optional_page_params(page_size, cursor)
+    params["order"] = order
     if after_event_id is not None:
         if not isinstance(after_event_id, str) or after_event_id != after_event_id.strip():
             raise ValueError("after_event_id must be an event_id from an activity response")
@@ -117,6 +120,10 @@ def _activity_page_params(
             raise ValueError("after_event_id must be an event_id from an activity response")
         params["after_event_id"] = after_event_id
     return params
+
+
+def _warehouse_snapshot_changed(error: AtraxisAPIError) -> bool:
+    return error.problem.type == "urn:atraxis:problem:warehouse-snapshot-changed"
 
 
 class AtraxisClient:
@@ -168,6 +175,29 @@ class AtraxisClient:
             if not page.next_cursor:
                 return
             cursor = page.next_cursor
+
+    def get_warehouse_snapshot(self, *, page_size: int = 50) -> WarehouseSnapshot:
+        for attempt in range(3):
+            cursor: str | None = None
+            pages: list[WarehousePage] = []
+            try:
+                while True:
+                    page = self.get_warehouse(page_size=page_size, cursor=cursor)
+                    pages.append(page)
+                    if not page.next_cursor:
+                        first = pages[0]
+                        return WarehouseSnapshot(
+                            slots_used=first.slots_used,
+                            slots_total=first.slots_total,
+                            snapshot_revision=first.snapshot_revision,
+                            activity_checkpoint=first.activity_checkpoint,
+                            items=tuple(item for value in pages for item in value.items),
+                        )
+                    cursor = page.next_cursor
+            except AtraxisAPIError as exc:
+                if not _warehouse_snapshot_changed(exc) or attempt == 2:
+                    raise
+        raise RuntimeError("unreachable")
 
     def list_currencies(self) -> tuple[Currency, ...]:
         response = self._transport.request("GET", "currencies")
@@ -228,11 +258,12 @@ class AtraxisClient:
         page_size: int = 50,
         cursor: str | None = None,
         after_event_id: str | None = None,
+        order: str = "desc",
     ) -> ActivityPage:
         response = self._transport.request(
             "GET",
             "activity",
-            params=_activity_page_params(page_size, cursor, after_event_id),
+            params=_activity_page_params(page_size, cursor, after_event_id, order),
         )
         try:
             return ActivityPage.from_dict(object_payload(response))
@@ -244,23 +275,32 @@ class AtraxisClient:
         *,
         page_size: int = 50,
         after_event_id: str | None = None,
+        order: str = "desc",
     ) -> Iterator[ActivityEvent]:
-        if after_event_id is not None:
-            checkpoint = after_event_id
-            while True:
-                page = self.get_activity(page_size=page_size, after_event_id=checkpoint)
-                yield from page.items
-                if len(page.items) < page_size:
-                    return
-                checkpoint = page.items[-1].event_id
-
         cursor: str | None = None
         while True:
-            page = self.get_activity(page_size=page_size, cursor=cursor)
+            page = self.get_activity(
+                page_size=page_size,
+                cursor=cursor,
+                after_event_id=after_event_id,
+                order=order,
+            )
             yield from page.items
             if not page.next_cursor:
                 return
             cursor = page.next_cursor
+
+    def iter_new_activity(
+        self,
+        *,
+        after_event_id: str,
+        page_size: int = 50,
+    ) -> Iterator[ActivityEvent]:
+        yield from self.iter_activity(
+            page_size=page_size,
+            after_event_id=after_event_id,
+            order="asc",
+        )
 
 
 class AsyncAtraxisClient:
@@ -315,6 +355,29 @@ class AsyncAtraxisClient:
             if not page.next_cursor:
                 return
             cursor = page.next_cursor
+
+    async def get_warehouse_snapshot(self, *, page_size: int = 50) -> WarehouseSnapshot:
+        for attempt in range(3):
+            cursor: str | None = None
+            pages: list[WarehousePage] = []
+            try:
+                while True:
+                    page = await self.get_warehouse(page_size=page_size, cursor=cursor)
+                    pages.append(page)
+                    if not page.next_cursor:
+                        first = pages[0]
+                        return WarehouseSnapshot(
+                            slots_used=first.slots_used,
+                            slots_total=first.slots_total,
+                            snapshot_revision=first.snapshot_revision,
+                            activity_checkpoint=first.activity_checkpoint,
+                            items=tuple(item for value in pages for item in value.items),
+                        )
+                    cursor = page.next_cursor
+            except AtraxisAPIError as exc:
+                if not _warehouse_snapshot_changed(exc) or attempt == 2:
+                    raise
+        raise RuntimeError("unreachable")
 
     async def list_currencies(self) -> tuple[Currency, ...]:
         response = await self._transport.request("GET", "currencies")
@@ -375,11 +438,12 @@ class AsyncAtraxisClient:
         page_size: int = 50,
         cursor: str | None = None,
         after_event_id: str | None = None,
+        order: str = "desc",
     ) -> ActivityPage:
         response = await self._transport.request(
             "GET",
             "activity",
-            params=_activity_page_params(page_size, cursor, after_event_id),
+            params=_activity_page_params(page_size, cursor, after_event_id, order),
         )
         try:
             return ActivityPage.from_dict(object_payload(response))
@@ -391,22 +455,31 @@ class AsyncAtraxisClient:
         *,
         page_size: int = 50,
         after_event_id: str | None = None,
+        order: str = "desc",
     ) -> AsyncIterator[ActivityEvent]:
-        if after_event_id is not None:
-            checkpoint = after_event_id
-            while True:
-                page = await self.get_activity(page_size=page_size, after_event_id=checkpoint)
-                for item in page.items:
-                    yield item
-                if len(page.items) < page_size:
-                    return
-                checkpoint = page.items[-1].event_id
-
         cursor: str | None = None
         while True:
-            page = await self.get_activity(page_size=page_size, cursor=cursor)
+            page = await self.get_activity(
+                page_size=page_size,
+                cursor=cursor,
+                after_event_id=after_event_id,
+                order=order,
+            )
             for item in page.items:
                 yield item
             if not page.next_cursor:
                 return
             cursor = page.next_cursor
+
+    async def iter_new_activity(
+        self,
+        *,
+        after_event_id: str,
+        page_size: int = 50,
+    ) -> AsyncIterator[ActivityEvent]:
+        async for item in self.iter_activity(
+            page_size=page_size,
+            after_event_id=after_event_id,
+            order="asc",
+        ):
+            yield item

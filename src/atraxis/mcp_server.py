@@ -206,6 +206,17 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
                 return _safe_failure(error)
 
         @mcp.tool(annotations=readonly)
+        async def atraxis_get_warehouse_snapshot(page_size: int = 50) -> dict[str, object]:
+            """Read a complete consistent warehouse snapshot with bounded automatic restarts."""
+            try:
+                async with _client(token, base_url) as client:
+                    return _jsonable_dict(
+                        await client.get_warehouse_snapshot(page_size=page_size)
+                    )
+            except Exception as error:
+                return _safe_failure(error)
+
+        @mcp.tool(annotations=readonly)
         async def atraxis_list_currencies() -> dict[str, object]:
             """Read the authenticated guild's internal currencies."""
             try:
@@ -228,6 +239,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
             page_size: int = 50,
             cursor: str | None = None,
             after_event_id: str | None = None,
+            order: str = "desc",
         ) -> dict[str, object]:
             """Read activity, optionally only after one previously returned event_id."""
             try:
@@ -237,6 +249,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
                             page_size=page_size,
                             cursor=cursor,
                             after_event_id=after_event_id,
+                            order=order,
                         )
                     )
             except Exception as error:

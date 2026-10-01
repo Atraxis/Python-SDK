@@ -18,6 +18,7 @@ PUBLIC_ACTIVITY_FIELDS = {
     "from",
     "to",
     "asset",
+    "warehouse_item",
     "gross",
     "fee",
     "net",

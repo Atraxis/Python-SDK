@@ -6,6 +6,7 @@ from .errors import AtraxisAPIError, AtraxisError, AtraxisResponseError, Atraxis
 from .models import (
     ActivityEvent,
     ActivityPage,
+    ActivityWarehouseItem,
     Balance,
     Currency,
     CurrencyTransfer,
@@ -23,11 +24,13 @@ from .models import (
     WarehousePage,
     WarehousePassiveSkill,
     WarehouseShieldAbility,
+    WarehouseSnapshot,
 )
 
 __all__ = [
     "ActivityEvent",
     "ActivityPage",
+    "ActivityWarehouseItem",
     "AsyncAtraxisClient",
     "AtraxisAPIError",
     "AtraxisClient",
@@ -51,6 +54,7 @@ __all__ = [
     "WarehousePage",
     "WarehousePassiveSkill",
     "WarehouseShieldAbility",
+    "WarehouseSnapshot",
 ]
 
 __version__ = PACKAGE_VERSION

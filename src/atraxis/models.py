@@ -462,7 +462,9 @@ class WarehouseItem:
 class WarehousePage:
     slots_used: int
     slots_total: int
+    snapshot_revision: int
     items: tuple[WarehouseItem, ...]
+    activity_checkpoint: str | None = None
     next_cursor: str | None = None
 
     @classmethod
@@ -471,11 +473,22 @@ class WarehousePage:
         return cls(
             slots_used=_integer(data, "slots_used"),
             slots_total=_integer(data, "slots_total"),
+            snapshot_revision=_amount(data, "snapshot_revision"),
             items=tuple(
                 WarehouseItem.from_dict(item) for item in _items(data.get("items"), "items")
             ),
+            activity_checkpoint=_optional_text(data, "activity_checkpoint"),
             next_cursor=_optional_text(data, "next_cursor"),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class WarehouseSnapshot:
+    slots_used: int
+    slots_total: int
+    snapshot_revision: int
+    items: tuple[WarehouseItem, ...]
+    activity_checkpoint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -752,6 +765,51 @@ class ActivityAsset:
 
 
 @dataclass(frozen=True, slots=True)
+class ActivityWarehouseItem:
+    warehouse_item_id: int
+    item_id: int
+    name: str
+    quantity_before: int
+    quantity_after: int
+    durability: int
+    max_durability: int
+    transfer_restricted: bool
+    item_type: str | None = None
+    set_type: str | None = None
+    rarity: str | None = None
+    tier: int | None = None
+    is_unique: bool = False
+    condition: WarehouseItemCondition | None = None
+    instance: WarehouseItemInstance | None = None
+
+    @classmethod
+    def from_dict(cls, value: object) -> ActivityWarehouseItem:
+        data = _mapping(value, "activity warehouse item")
+        quantity_before = _amount(data, "quantity_before")
+        quantity_after = _amount(data, "quantity_after")
+        warehouse_data = dict(data)
+        warehouse_data["quantity"] = max(1, quantity_before, quantity_after)
+        item = WarehouseItem.from_dict(warehouse_data)
+        return cls(
+            warehouse_item_id=item.warehouse_item_id,
+            item_id=item.item_id,
+            name=item.name,
+            quantity_before=quantity_before,
+            quantity_after=quantity_after,
+            durability=item.durability,
+            max_durability=item.max_durability,
+            transfer_restricted=item.transfer_restricted,
+            item_type=item.item_type,
+            set_type=item.set_type,
+            rarity=item.rarity,
+            tier=item.tier,
+            is_unique=item.is_unique,
+            condition=item.condition,
+            instance=item.instance,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ActivityEvent:
     event_id: str
     occurred_at: datetime
@@ -768,6 +826,7 @@ class ActivityEvent:
     balance_after: int | None
     leg_index: int
     deposit_method: str | None = None
+    warehouse_item: ActivityWarehouseItem | None = None
 
     @classmethod
     def from_dict(cls, value: object) -> ActivityEvent:
@@ -795,6 +854,11 @@ class ActivityEvent:
             balance_after=_amount(data, "balance_after") if "balance_after" in data else None,
             leg_index=_integer(data, "leg_index"),
             deposit_method=deposit_method,
+            warehouse_item=(
+                ActivityWarehouseItem.from_dict(data["warehouse_item"])
+                if "warehouse_item" in data
+                else None
+            ),
         )
 
 

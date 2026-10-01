@@ -25,6 +25,7 @@ def warehouse(*, next_cursor: str | None = None) -> dict[str, object]:
     result: dict[str, object] = {
         "slots_used": 1,
         "slots_total": 50,
+        "snapshot_revision": "1",
         "items": [
             {
                 "warehouse_item_id": "700001",
@@ -102,6 +103,22 @@ def activity_event(event_id: str, occurred_at: str) -> dict[str, object]:
             "item_id": "200001",
             "warehouse_item_id": "700001",
         },
+        "warehouse_item": {
+            "warehouse_item_id": "700001",
+            "item_id": "200001",
+            "name": "Test item",
+            "item_type": "Оружие",
+            "set_type": "Тяжёлый",
+            "rarity": "Эпический",
+            "tier": 3,
+            "quantity_before": "0",
+            "quantity_after": "1",
+            "durability": 3,
+            "max_durability": 5,
+            "transfer_restricted": False,
+            "is_unique": True,
+            "instance": {"kind": "equipment", "level": 30, "quality": "III"},
+        },
         "gross": "1",
         "fee": "0",
         "net": "1",
@@ -131,6 +148,37 @@ def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> Non
     assert requests[0].headers["User-Agent"] == f"atraxis-sdk/{__version__}"
     assert requests[0].url.params["page_size"] == "25"
     assert requests[1].url.params["cursor"] == "next"
+
+
+def test_warehouse_snapshot_restarts_after_revision_conflict() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        call = len(requests)
+        if call == 1:
+            return json_response(warehouse(next_cursor="old"))
+        if call == 2:
+            return json_response(
+                {
+                    "type": "urn:atraxis:problem:warehouse-snapshot-changed",
+                    "title": "Склад изменился",
+                    "status": 409,
+                },
+                409,
+            )
+        page = warehouse(next_cursor="new" if call == 3 else None)
+        page["snapshot_revision"] = "2"
+        page["activity_checkpoint"] = "00000000-0000-4000-8000-000000000001"
+        return json_response(page)
+
+    with AtraxisClient(TOKEN, base_url=BASE_URL, transport=httpx.MockTransport(handler)) as client:
+        snapshot = client.get_warehouse_snapshot(page_size=25)
+
+    assert snapshot.snapshot_revision == 2
+    assert snapshot.activity_checkpoint == "00000000-0000-4000-8000-000000000001"
+    assert len(snapshot.items) == 2
+    assert [request.url.params.get("cursor") for request in requests] == [None, "old", None, "new"]
 
 
 def test_currency_configuration_has_only_user_facing_fields() -> None:
@@ -307,25 +355,28 @@ def test_activity_checkpoint_pages_forward_without_duplicates() -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        checkpoint = request.url.params["after_event_id"]
-        if checkpoint == anchor:
-            return json_response({"items": [activity_event(first, "2026-10-01T10:01:00Z")]})
-        if checkpoint == first:
-            return json_response({"items": [activity_event(second, "2026-10-01T10:02:00Z")]})
-        if checkpoint == second:
-            return json_response({"items": []})
-        raise AssertionError(f"unexpected checkpoint {checkpoint}")
+        assert request.url.params["after_event_id"] == anchor
+        assert request.url.params["order"] == "asc"
+        if "cursor" not in request.url.params:
+            return json_response(
+                {
+                    "items": [activity_event(first, "2026-10-01T10:01:00Z")],
+                    "next_cursor": "next",
+                }
+            )
+        assert request.url.params["cursor"] == "next"
+        return json_response({"items": [activity_event(second, "2026-10-01T10:02:00Z")]})
 
     with AtraxisClient(TOKEN, base_url=BASE_URL, transport=httpx.MockTransport(handler)) as client:
-        events = list(client.iter_activity(page_size=1, after_event_id=anchor))
+        events = list(client.iter_new_activity(page_size=1, after_event_id=anchor))
 
     assert [event.event_id for event in events] == [first, second]
-    assert [request.url.params["after_event_id"] for request in requests] == [
-        anchor,
-        first,
-        second,
-    ]
-    assert all("cursor" not in request.url.params for request in requests)
+    assert events[0].warehouse_item is not None
+    assert events[0].warehouse_item.quantity_before == 0
+    assert events[0].warehouse_item.instance is not None
+    assert [request.url.params["after_event_id"] for request in requests] == [anchor, anchor]
+    assert "cursor" not in requests[0].url.params
+    assert requests[1].url.params["cursor"] == "next"
 
 
 @pytest.mark.parametrize(
@@ -341,16 +392,24 @@ def test_activity_rejects_invalid_checkpoint(after_event_id: str) -> None:
         client.get_activity(after_event_id=after_event_id)
 
 
-def test_activity_rejects_cursor_with_checkpoint() -> None:
-    transport = httpx.MockTransport(lambda _request: json_response({"items": []}))
-    with (
-        AtraxisClient(TOKEN, base_url=BASE_URL, transport=transport) as client,
-        pytest.raises(ValueError, match="cannot be used together"),
-    ):
+def test_activity_accepts_cursor_with_checkpoint_and_explicit_order() -> None:
+    seen: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen = request
+        return json_response({"items": []})
+
+    transport = httpx.MockTransport(handler)
+    with AtraxisClient(TOKEN, base_url=BASE_URL, transport=transport) as client:
         client.get_activity(
             cursor="next",
             after_event_id="00000000-0000-4000-8000-000000000001",
+            order="asc",
         )
+    assert seen is not None
+    assert seen.url.params["cursor"] == "next"
+    assert seen.url.params["order"] == "asc"
 
 
 @pytest.mark.parametrize(
