@@ -225,13 +225,19 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
 
         @mcp.tool(annotations=readonly)
         async def atraxis_get_activity(
-            page_size: int = 50, cursor: str | None = None
+            page_size: int = 50,
+            cursor: str | None = None,
+            after_event_id: str | None = None,
         ) -> dict[str, object]:
-            """Read one bounded page of public guild value-movement activity."""
+            """Read activity, optionally only after one previously returned event_id."""
             try:
                 async with _client(token, base_url) as client:
                     return _jsonable_dict(
-                        await client.get_activity(page_size=page_size, cursor=cursor)
+                        await client.get_activity(
+                            page_size=page_size,
+                            cursor=cursor,
+                            after_event_id=after_event_id,
+                        )
                     )
             except Exception as error:
                 return _safe_failure(error)

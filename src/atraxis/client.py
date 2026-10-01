@@ -96,6 +96,29 @@ def _optional_page_params(page_size: int, cursor: str | None) -> dict[str, Query
     return params
 
 
+def _activity_page_params(
+    page_size: int,
+    cursor: str | None,
+    after_event_id: str | None,
+) -> dict[str, QueryValue]:
+    if cursor and after_event_id:
+        raise ValueError("cursor and after_event_id cannot be used together")
+    params = _optional_page_params(page_size, cursor)
+    if after_event_id is not None:
+        if not isinstance(after_event_id, str) or after_event_id != after_event_id.strip():
+            raise ValueError("after_event_id must be an event_id from an activity response")
+        try:
+            parsed = uuid.UUID(after_event_id)
+        except ValueError as exc:
+            raise ValueError(
+                "after_event_id must be an event_id from an activity response"
+            ) from exc
+        if parsed.int == 0 or str(parsed) != after_event_id:
+            raise ValueError("after_event_id must be an event_id from an activity response")
+        params["after_event_id"] = after_event_id
+    return params
+
+
 class AtraxisClient:
     """Small typed synchronous client. The token is never included in ``repr``."""
 
@@ -199,16 +222,38 @@ class AtraxisClient:
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
-    def get_activity(self, *, page_size: int = 50, cursor: str | None = None) -> ActivityPage:
+    def get_activity(
+        self,
+        *,
+        page_size: int = 50,
+        cursor: str | None = None,
+        after_event_id: str | None = None,
+    ) -> ActivityPage:
         response = self._transport.request(
-            "GET", "activity", params=_optional_page_params(page_size, cursor)
+            "GET",
+            "activity",
+            params=_activity_page_params(page_size, cursor, after_event_id),
         )
         try:
             return ActivityPage.from_dict(object_payload(response))
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
-    def iter_activity(self, *, page_size: int = 50) -> Iterator[ActivityEvent]:
+    def iter_activity(
+        self,
+        *,
+        page_size: int = 50,
+        after_event_id: str | None = None,
+    ) -> Iterator[ActivityEvent]:
+        if after_event_id is not None:
+            checkpoint = after_event_id
+            while True:
+                page = self.get_activity(page_size=page_size, after_event_id=checkpoint)
+                yield from page.items
+                if len(page.items) < page_size:
+                    return
+                checkpoint = page.items[-1].event_id
+
         cursor: str | None = None
         while True:
             page = self.get_activity(page_size=page_size, cursor=cursor)
@@ -324,16 +369,39 @@ class AsyncAtraxisClient:
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
-    async def get_activity(self, *, page_size: int = 50, cursor: str | None = None) -> ActivityPage:
+    async def get_activity(
+        self,
+        *,
+        page_size: int = 50,
+        cursor: str | None = None,
+        after_event_id: str | None = None,
+    ) -> ActivityPage:
         response = await self._transport.request(
-            "GET", "activity", params=_optional_page_params(page_size, cursor)
+            "GET",
+            "activity",
+            params=_activity_page_params(page_size, cursor, after_event_id),
         )
         try:
             return ActivityPage.from_dict(object_payload(response))
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
-    async def iter_activity(self, *, page_size: int = 50) -> AsyncIterator[ActivityEvent]:
+    async def iter_activity(
+        self,
+        *,
+        page_size: int = 50,
+        after_event_id: str | None = None,
+    ) -> AsyncIterator[ActivityEvent]:
+        if after_event_id is not None:
+            checkpoint = after_event_id
+            while True:
+                page = await self.get_activity(page_size=page_size, after_event_id=checkpoint)
+                for item in page.items:
+                    yield item
+                if len(page.items) < page_size:
+                    return
+                checkpoint = page.items[-1].event_id
+
         cursor: str | None = None
         while True:
             page = await self.get_activity(page_size=page_size, cursor=cursor)

@@ -87,6 +87,28 @@ def json_response(payload: object, status: int = 200, **headers: str) -> httpx.R
     return httpx.Response(status, json=payload, headers=headers)
 
 
+def activity_event(event_id: str, occurred_at: str) -> dict[str, object]:
+    return {
+        "event_id": event_id,
+        "occurred_at": occurred_at,
+        "operation_id": "00000000-0000-4000-8000-000000000010",
+        "kind": "warehouse_deposit",
+        "source": "chat",
+        "deposit_method": "tagged_transfer",
+        "from": {"type": "player", "player_id": "42"},
+        "to": {"type": "guild"},
+        "asset": {
+            "type": "game_item",
+            "item_id": "200001",
+            "warehouse_item_id": "700001",
+        },
+        "gross": "1",
+        "fee": "0",
+        "net": "1",
+        "leg_index": 0,
+    }
+
+
 def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> None:
     requests: list[httpx.Request] = []
 
@@ -275,6 +297,60 @@ async def test_async_client_and_activity_pagination() -> None:
     assert events[0].deposit_method == "tagged_transfer"
     assert events[0].asset.warehouse_item_id == 700001
     assert requests[0].url.path.endswith("/activity")
+
+
+def test_activity_checkpoint_pages_forward_without_duplicates() -> None:
+    anchor = "00000000-0000-4000-8000-000000000001"
+    first = "00000000-0000-4000-8000-000000000002"
+    second = "00000000-0000-4000-8000-000000000003"
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        checkpoint = request.url.params["after_event_id"]
+        if checkpoint == anchor:
+            return json_response({"items": [activity_event(first, "2026-10-01T10:01:00Z")]})
+        if checkpoint == first:
+            return json_response({"items": [activity_event(second, "2026-10-01T10:02:00Z")]})
+        if checkpoint == second:
+            return json_response({"items": []})
+        raise AssertionError(f"unexpected checkpoint {checkpoint}")
+
+    with AtraxisClient(TOKEN, base_url=BASE_URL, transport=httpx.MockTransport(handler)) as client:
+        events = list(client.iter_activity(page_size=1, after_event_id=anchor))
+
+    assert [event.event_id for event in events] == [first, second]
+    assert [request.url.params["after_event_id"] for request in requests] == [
+        anchor,
+        first,
+        second,
+    ]
+    assert all("cursor" not in request.url.params for request in requests)
+
+
+@pytest.mark.parametrize(
+    "after_event_id",
+    ["", "not-a-uuid", " 00000000-0000-4000-8000-000000000001"],
+)
+def test_activity_rejects_invalid_checkpoint(after_event_id: str) -> None:
+    transport = httpx.MockTransport(lambda _request: json_response({"items": []}))
+    with (
+        AtraxisClient(TOKEN, base_url=BASE_URL, transport=transport) as client,
+        pytest.raises(ValueError, match="after_event_id"),
+    ):
+        client.get_activity(after_event_id=after_event_id)
+
+
+def test_activity_rejects_cursor_with_checkpoint() -> None:
+    transport = httpx.MockTransport(lambda _request: json_response({"items": []}))
+    with (
+        AtraxisClient(TOKEN, base_url=BASE_URL, transport=transport) as client,
+        pytest.raises(ValueError, match="cannot be used together"),
+    ):
+        client.get_activity(
+            cursor="next",
+            after_event_id="00000000-0000-4000-8000-000000000001",
+        )
 
 
 @pytest.mark.parametrize(

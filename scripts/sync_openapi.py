@@ -356,6 +356,20 @@ def validate(spec_value: object) -> Mapping[str, Any]:
         raise ValueError(
             f"unexpected public operations: {sorted(operations ^ EXPECTED_OPERATIONS)}"
         )
+    activity_path = require_mapping(paths.get("/activity"), "paths./activity")
+    activity = require_mapping(activity_path.get("get"), "GET /activity")
+    activity_parameters = require_list(activity.get("parameters"), "GET /activity parameters")
+    expected_activity_parameters = {
+        "#/components/parameters/PageSize",
+        "#/components/parameters/Cursor",
+        "#/components/parameters/AfterEventID",
+    }
+    actual_activity_parameters = {
+        require_string(require_mapping(value, "activity parameter").get("$ref"), "$ref")
+        for value in activity_parameters
+    }
+    if actual_activity_parameters != expected_activity_parameters:
+        raise ValueError("activity parameters do not match the reviewed public contract")
     validate_documentation(spec)
     schemas = component_schemas(spec)
     if set(schemas) != EXPECTED_SCHEMAS:

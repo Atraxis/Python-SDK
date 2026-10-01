@@ -34,6 +34,20 @@ async def test_mcp_read_tools_require_token_and_writes_require_explicit_flag() -
 
 
 @pytest.mark.asyncio
+async def test_mcp_activity_accepts_a_saved_event_id() -> None:
+    server = build_server(
+        token="agk_example.redacted",
+        base_url="https://example.test/api/external/v1",
+        allow_writes=False,
+    )
+    async with Client(server) as client:  # type: ignore[arg-type]
+        result = await client.list_tools()
+
+    activity = next(tool for tool in result.tools if tool.name == "atraxis_get_activity")
+    assert "after_event_id" in activity.input_schema["properties"]
+
+
+@pytest.mark.asyncio
 async def test_mcp_contract_tool_runs_through_real_client_session() -> None:
     server = build_server(token=None, base_url=None, allow_writes=False)
     async with Client(server) as client:  # type: ignore[arg-type]
@@ -45,7 +59,7 @@ async def test_mcp_contract_tool_runs_through_real_client_session() -> None:
 
     assert result.is_error is False
     assert result.structured_content is not None
-    assert result.structured_content["version"] == "1.1.0"
+    assert result.structured_content["version"] == "1.2.0"
 
     assert endpoint.is_error is False
     assert endpoint.structured_content is not None
