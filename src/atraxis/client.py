@@ -17,7 +17,7 @@ from ._transport import (
     object_payload,
     response_request_id,
 )
-from .errors import AtraxisAPIError, AtraxisResponseError
+from .errors import AtraxisResponseError
 from .models import (
     CURRENCY_CODE_PATTERN,
     ActivityEvent,
@@ -26,9 +26,8 @@ from .models import (
     PlayerBalances,
     TransferInput,
     TransferResult,
+    Warehouse,
     WarehouseItem,
-    WarehousePage,
-    WarehouseSnapshot,
 )
 
 DEFAULT_BASE_URL = "https://atraxisonline.com/api/external/v1"
@@ -122,10 +121,6 @@ def _activity_page_params(
     return params
 
 
-def _warehouse_snapshot_changed(error: AtraxisAPIError) -> bool:
-    return error.problem.type == "urn:atraxis:problem:warehouse-snapshot-changed"
-
-
 class AtraxisClient:
     """Small typed synchronous client. The token is never included in ``repr``."""
 
@@ -158,46 +153,15 @@ class AtraxisClient:
     def close(self) -> None:
         self._transport.close()
 
-    def get_warehouse(self, *, page_size: int = 50, cursor: str | None = None) -> WarehousePage:
-        response = self._transport.request(
-            "GET", "warehouse", params=_optional_page_params(page_size, cursor)
-        )
+    def get_warehouse(self) -> Warehouse:
+        response = self._transport.request("GET", "warehouse")
         try:
-            return WarehousePage.from_dict(object_payload(response))
+            return Warehouse.from_dict(object_payload(response))
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
-    def iter_warehouse(self, *, page_size: int = 50) -> Iterator[WarehouseItem]:
-        cursor: str | None = None
-        while True:
-            page = self.get_warehouse(page_size=page_size, cursor=cursor)
-            yield from page.items
-            if not page.next_cursor:
-                return
-            cursor = page.next_cursor
-
-    def get_warehouse_snapshot(self, *, page_size: int = 50) -> WarehouseSnapshot:
-        for attempt in range(3):
-            cursor: str | None = None
-            pages: list[WarehousePage] = []
-            try:
-                while True:
-                    page = self.get_warehouse(page_size=page_size, cursor=cursor)
-                    pages.append(page)
-                    if not page.next_cursor:
-                        first = pages[0]
-                        return WarehouseSnapshot(
-                            slots_used=first.slots_used,
-                            slots_total=first.slots_total,
-                            snapshot_revision=first.snapshot_revision,
-                            activity_checkpoint=first.activity_checkpoint,
-                            items=tuple(item for value in pages for item in value.items),
-                        )
-                    cursor = page.next_cursor
-            except AtraxisAPIError as exc:
-                if not _warehouse_snapshot_changed(exc) or attempt == 2:
-                    raise
-        raise RuntimeError("unreachable")
+    def iter_warehouse(self) -> Iterator[WarehouseItem]:
+        yield from self.get_warehouse().items
 
     def list_currencies(self) -> tuple[Currency, ...]:
         response = self._transport.request("GET", "currencies")
@@ -335,49 +299,16 @@ class AsyncAtraxisClient:
     async def close(self) -> None:
         await self._transport.close()
 
-    async def get_warehouse(
-        self, *, page_size: int = 50, cursor: str | None = None
-    ) -> WarehousePage:
-        response = await self._transport.request(
-            "GET", "warehouse", params=_optional_page_params(page_size, cursor)
-        )
+    async def get_warehouse(self) -> Warehouse:
+        response = await self._transport.request("GET", "warehouse")
         try:
-            return WarehousePage.from_dict(object_payload(response))
+            return Warehouse.from_dict(object_payload(response))
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
-    async def iter_warehouse(self, *, page_size: int = 50) -> AsyncIterator[WarehouseItem]:
-        cursor: str | None = None
-        while True:
-            page = await self.get_warehouse(page_size=page_size, cursor=cursor)
-            for item in page.items:
-                yield item
-            if not page.next_cursor:
-                return
-            cursor = page.next_cursor
-
-    async def get_warehouse_snapshot(self, *, page_size: int = 50) -> WarehouseSnapshot:
-        for attempt in range(3):
-            cursor: str | None = None
-            pages: list[WarehousePage] = []
-            try:
-                while True:
-                    page = await self.get_warehouse(page_size=page_size, cursor=cursor)
-                    pages.append(page)
-                    if not page.next_cursor:
-                        first = pages[0]
-                        return WarehouseSnapshot(
-                            slots_used=first.slots_used,
-                            slots_total=first.slots_total,
-                            snapshot_revision=first.snapshot_revision,
-                            activity_checkpoint=first.activity_checkpoint,
-                            items=tuple(item for value in pages for item in value.items),
-                        )
-                    cursor = page.next_cursor
-            except AtraxisAPIError as exc:
-                if not _warehouse_snapshot_changed(exc) or attempt == 2:
-                    raise
-        raise RuntimeError("unreachable")
+    async def iter_warehouse(self) -> AsyncIterator[WarehouseItem]:
+        for item in (await self.get_warehouse()).items:
+            yield item
 
     async def list_currencies(self) -> tuple[Currency, ...]:
         response = await self._transport.request("GET", "currencies")

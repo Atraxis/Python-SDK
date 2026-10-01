@@ -21,11 +21,10 @@ TOKEN = "agk_example.redacted"
 BASE_URL = "https://example.test/api/external/v1"
 
 
-def warehouse(*, next_cursor: str | None = None) -> dict[str, object]:
-    result: dict[str, object] = {
+def warehouse() -> dict[str, object]:
+    return {
         "slots_used": 1,
         "slots_total": 50,
-        "snapshot_revision": "1",
         "items": [
             {
                 "warehouse_item_id": "700001",
@@ -79,9 +78,6 @@ def warehouse(*, next_cursor: str | None = None) -> dict[str, object]:
         ],
         "future_additive_field": True,
     }
-    if next_cursor:
-        result["next_cursor"] = next_cursor
-    return result
 
 
 def json_response(payload: object, status: int = 200, **headers: str) -> httpx.Response:
@@ -126,18 +122,20 @@ def activity_event(event_id: str, occurred_at: str) -> dict[str, object]:
     }
 
 
-def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> None:
+def test_sync_client_returns_complete_warehouse_without_pagination() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return json_response(warehouse(next_cursor="next" if len(requests) == 1 else None))
+        return json_response(warehouse())
 
     with AtraxisClient(TOKEN, base_url=BASE_URL, transport=httpx.MockTransport(handler)) as client:
-        items = list(client.iter_warehouse(page_size=25))
+        result = client.get_warehouse()
+        items = list(client.iter_warehouse())
         assert TOKEN not in repr(client)
 
-    assert [item.warehouse_item_id for item in items] == [700001, 700001]
+    assert result.slots_used == 1
+    assert [item.warehouse_item_id for item in items] == [700001]
     assert items[0].is_unique is True
     assert items[0].condition is None
     assert items[0].instance is not None
@@ -146,39 +144,8 @@ def test_sync_client_paginates_and_uses_header_auth_without_secret_repr() -> Non
     assert items[0].instance.passive_skills[0].skill_id == 18
     assert requests[0].headers["Authorization"] == f"Bearer {TOKEN}"
     assert requests[0].headers["User-Agent"] == f"atraxis-sdk/{__version__}"
-    assert requests[0].url.params["page_size"] == "25"
-    assert requests[1].url.params["cursor"] == "next"
-
-
-def test_warehouse_snapshot_restarts_after_revision_conflict() -> None:
-    requests: list[httpx.Request] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        call = len(requests)
-        if call == 1:
-            return json_response(warehouse(next_cursor="old"))
-        if call == 2:
-            return json_response(
-                {
-                    "type": "urn:atraxis:problem:warehouse-snapshot-changed",
-                    "title": "Склад изменился",
-                    "status": 409,
-                },
-                409,
-            )
-        page = warehouse(next_cursor="new" if call == 3 else None)
-        page["snapshot_revision"] = "2"
-        page["activity_checkpoint"] = "00000000-0000-4000-8000-000000000001"
-        return json_response(page)
-
-    with AtraxisClient(TOKEN, base_url=BASE_URL, transport=httpx.MockTransport(handler)) as client:
-        snapshot = client.get_warehouse_snapshot(page_size=25)
-
-    assert snapshot.snapshot_revision == 2
-    assert snapshot.activity_checkpoint == "00000000-0000-4000-8000-000000000001"
-    assert len(snapshot.items) == 2
-    assert [request.url.params.get("cursor") for request in requests] == [None, "old", None, "new"]
+    assert len(requests) == 2
+    assert all(not request.url.params for request in requests)
 
 
 def test_currency_configuration_has_only_user_facing_fields() -> None:

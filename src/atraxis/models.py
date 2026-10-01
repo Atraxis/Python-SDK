@@ -459,36 +459,23 @@ class WarehouseItem:
 
 
 @dataclass(frozen=True, slots=True)
-class WarehousePage:
+class Warehouse:
     slots_used: int
     slots_total: int
-    snapshot_revision: int
     items: tuple[WarehouseItem, ...]
     activity_checkpoint: str | None = None
-    next_cursor: str | None = None
 
     @classmethod
-    def from_dict(cls, value: object) -> WarehousePage:
+    def from_dict(cls, value: object) -> Warehouse:
         data = _mapping(value, "warehouse")
         return cls(
             slots_used=_integer(data, "slots_used"),
             slots_total=_integer(data, "slots_total"),
-            snapshot_revision=_amount(data, "snapshot_revision"),
             items=tuple(
                 WarehouseItem.from_dict(item) for item in _items(data.get("items"), "items")
             ),
             activity_checkpoint=_optional_text(data, "activity_checkpoint"),
-            next_cursor=_optional_text(data, "next_cursor"),
         )
-
-
-@dataclass(frozen=True, slots=True)
-class WarehouseSnapshot:
-    slots_used: int
-    slots_total: int
-    snapshot_revision: int
-    items: tuple[WarehouseItem, ...]
-    activity_checkpoint: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

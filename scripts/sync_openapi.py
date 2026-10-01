@@ -90,10 +90,8 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
     "Warehouse": {
         "activity_checkpoint",
         "items",
-        "next_cursor",
         "slots_total",
         "slots_used",
-        "snapshot_revision",
     },
     "ActivityWarehouseItem": {
         "condition",
@@ -382,6 +380,13 @@ def validate(spec_value: object) -> Mapping[str, Any]:
         raise ValueError(
             f"unexpected public operations: {sorted(operations ^ EXPECTED_OPERATIONS)}"
         )
+    warehouse_path = require_mapping(paths.get("/warehouse"), "paths./warehouse")
+    warehouse = require_mapping(warehouse_path.get("get"), "GET /warehouse")
+    if "parameters" in warehouse:
+        raise ValueError("GET /warehouse must return the complete warehouse without pagination")
+    warehouse_responses = require_mapping(warehouse.get("responses"), "GET /warehouse responses")
+    if "409" in warehouse_responses or "422" in warehouse_responses:
+        raise ValueError("GET /warehouse must not expose pagination errors")
     activity_path = require_mapping(paths.get("/activity"), "paths./activity")
     activity = require_mapping(activity_path.get("get"), "GET /activity")
     activity_parameters = require_list(activity.get("parameters"), "GET /activity parameters")

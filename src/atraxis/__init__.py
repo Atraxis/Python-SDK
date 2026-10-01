@@ -13,6 +13,7 @@ from .models import (
     ItemTransfer,
     PlayerBalances,
     TransferResult,
+    Warehouse,
     WarehouseCombatStats,
     WarehouseFishDetails,
     WarehouseFishingRodStats,
@@ -21,10 +22,8 @@ from .models import (
     WarehouseItemCondition,
     WarehouseItemInstance,
     WarehouseJournalDetails,
-    WarehousePage,
     WarehousePassiveSkill,
     WarehouseShieldAbility,
-    WarehouseSnapshot,
 )
 
 __all__ = [
@@ -43,6 +42,7 @@ __all__ = [
     "ItemTransfer",
     "PlayerBalances",
     "TransferResult",
+    "Warehouse",
     "WarehouseCombatStats",
     "WarehouseFishDetails",
     "WarehouseFishingRodStats",
@@ -51,10 +51,8 @@ __all__ = [
     "WarehouseItemCondition",
     "WarehouseItemInstance",
     "WarehouseJournalDetails",
-    "WarehousePage",
     "WarehousePassiveSkill",
     "WarehouseShieldAbility",
-    "WarehouseSnapshot",
 ]
 
 __version__ = PACKAGE_VERSION

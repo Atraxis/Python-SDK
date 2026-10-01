@@ -278,28 +278,6 @@
             "$ref": "#/components/headers/RequestID"
           }
         }
-      },
-      "WarehouseSnapshotChanged": {
-        "content": {
-          "application/problem+json": {
-            "example": {
-              "detail": "Склад изменился во время загрузки. Начните получение склада заново.",
-              "request_id": "00000000-0000-4000-8000-000000000001",
-              "status": 409,
-              "title": "Склад изменился",
-              "type": "urn:atraxis:problem:warehouse-snapshot-changed"
-            },
-            "schema": {
-              "$ref": "#/components/schemas/Problem"
-            }
-          }
-        },
-        "description": "Склад изменился между страницами. Начните получение склада заново.",
-        "headers": {
-          "X-Request-ID": {
-            "$ref": "#/components/headers/RequestID"
-          }
-        }
       }
     },
     "schemas": {
@@ -1015,24 +993,19 @@
       },
       "Warehouse": {
         "additionalProperties": false,
-        "description": "Одна страница склада гильдии и его общая вместимость.",
+        "description": "Полное содержимое склада гильдии и его общая вместимость.",
         "properties": {
           "activity_checkpoint": {
-            "description": "Последняя доступная запись истории на момент начала снимка. После загрузки склада используйте её как after_event_id, чтобы получать последующие передачи.",
+            "description": "Последняя доступная запись истории на момент получения склада. Передайте её как after_event_id, чтобы затем получать только более новые операции.",
             "format": "uuid",
             "type": "string"
           },
           "items": {
-            "description": "Позиции склада на этой странице.",
+            "description": "Все позиции склада.",
             "items": {
               "$ref": "#/components/schemas/WarehouseItem"
             },
-            "maxItems": 100,
             "type": "array"
-          },
-          "next_cursor": {
-            "description": "Курсор следующей страницы того же снимка. Поле отсутствует на последней странице. Если склад изменился, запрос с этим курсором вернёт 409.",
-            "type": "string"
           },
           "slots_total": {
             "description": "Общая вместимость склада в ячейках.",
@@ -1043,16 +1016,11 @@
             "description": "Сколько ячеек сейчас занято.",
             "minimum": 0,
             "type": "integer"
-          },
-          "snapshot_revision": {
-            "$ref": "#/components/schemas/NonNegativeAmount",
-            "description": "Ревизия склада, общая для всех страниц одного снимка. Курсор уже содержит её, поэтому отдельно передавать значение не требуется."
           }
         },
         "required": [
           "slots_used",
           "slots_total",
-          "snapshot_revision",
           "items"
         ],
         "type": "object"
@@ -2157,16 +2125,8 @@
     },
     "/warehouse": {
       "get": {
-        "description": "Возвращает заполнение и содержимое склада. warehouse_item_id указывает на конкретную позицию, а item_id — на общий тип предмета. Чтобы показать покупателю характеристики уникального предмета, используйте instance и condition. Для выдачи предмета передавайте warehouse_item_id. Все страницы относятся к одной ревизии склада. Если склад изменится во время загрузки, следующий запрос вернёт 409 — начните получение склада заново.",
+        "description": "Возвращает заполнение и содержимое склада. warehouse_item_id указывает на конкретную позицию, а item_id — на общий тип предмета. Чтобы показать покупателю характеристики уникального предмета, используйте instance и condition. Для выдачи предмета передавайте warehouse_item_id. Один запрос возвращает весь склад.",
         "operationId": "getGuildWarehouse",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/PageSize"
-          },
-          {
-            "$ref": "#/components/parameters/Cursor"
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -2216,15 +2176,14 @@
                     }
                   ],
                   "slots_total": 50,
-                  "slots_used": 1,
-                  "snapshot_revision": "42"
+                  "slots_used": 1
                 },
                 "schema": {
                   "$ref": "#/components/schemas/Warehouse"
                 }
               }
             },
-            "description": "Страница склада.",
+            "description": "Содержимое склада.",
             "headers": {
               "X-Request-ID": {
                 "$ref": "#/components/headers/RequestID"
@@ -2233,12 +2192,6 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
-          },
-          "409": {
-            "$ref": "#/components/responses/WarehouseSnapshotChanged"
-          },
-          "422": {
-            "$ref": "#/components/responses/InvalidPagination"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2255,12 +2208,12 @@
           {
             "label": "cURL",
             "lang": "cURL",
-            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/warehouse?page_size=50' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/warehouse' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
           },
           {
             "label": "Python · sync",
             "lang": "Python",
-            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    page = client.get_warehouse(page_size=50)\n    for item in page.items:\n        print(item.warehouse_item_id, item.name, item.quantity)"
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    warehouse = client.get_warehouse()\n    for item in warehouse.items:\n        print(item.warehouse_item_id, item.name, item.quantity)"
           },
           {
             "label": "Python · async",

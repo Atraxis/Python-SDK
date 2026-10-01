@@ -25,6 +25,7 @@ async def test_mcp_without_token_exposes_only_public_contract_tools() -> None:
 async def test_mcp_read_tools_require_token_and_writes_require_explicit_flag() -> None:
     read_only = await tool_names(token="agk_example.redacted", allow_writes=False)
     assert "atraxis_get_warehouse" in read_only
+    assert "atraxis_get_warehouse_snapshot" not in read_only
     assert "atraxis_get_activity" in read_only
     assert "atraxis_upsert_currency" not in read_only
     assert "atraxis_transfer" not in read_only
@@ -45,6 +46,20 @@ async def test_mcp_activity_accepts_a_saved_event_id() -> None:
 
     activity = next(tool for tool in result.tools if tool.name == "atraxis_get_activity")
     assert "after_event_id" in activity.input_schema["properties"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_warehouse_has_no_pagination_parameters() -> None:
+    server = build_server(
+        token="agk_example.redacted",
+        base_url="https://example.test/api/external/v1",
+        allow_writes=False,
+    )
+    async with Client(server) as client:  # type: ignore[arg-type]
+        result = await client.list_tools()
+
+    warehouse = next(tool for tool in result.tools if tool.name == "atraxis_get_warehouse")
+    assert warehouse.input_schema["properties"] == {}
 
 
 @pytest.mark.asyncio

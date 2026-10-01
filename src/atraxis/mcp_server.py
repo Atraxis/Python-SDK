@@ -136,7 +136,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
         title="Atraxis API",
         description="Safe local tools for the public Atraxis guild API.",
         instructions=(
-            "Use read tools to inspect one bounded API page at a time. "
+            "The warehouse tool returns the complete warehouse; activity can span pages. "
             "Never request, repeat, or expose ATRAXIS_API_TOKEN. "
             "Writes exist only when the operator started the server with --allow-writes."
         ),
@@ -193,26 +193,11 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
     if token:
 
         @mcp.tool(annotations=readonly)
-        async def atraxis_get_warehouse(
-            page_size: int = 50, cursor: str | None = None
-        ) -> dict[str, object]:
-            """Read one bounded page of the authenticated guild warehouse."""
+        async def atraxis_get_warehouse() -> dict[str, object]:
+            """Read the authenticated guild's complete warehouse."""
             try:
                 async with _client(token, base_url) as client:
-                    return _jsonable_dict(
-                        await client.get_warehouse(page_size=page_size, cursor=cursor)
-                    )
-            except Exception as error:
-                return _safe_failure(error)
-
-        @mcp.tool(annotations=readonly)
-        async def atraxis_get_warehouse_snapshot(page_size: int = 50) -> dict[str, object]:
-            """Read a complete consistent warehouse snapshot with bounded automatic restarts."""
-            try:
-                async with _client(token, base_url) as client:
-                    return _jsonable_dict(
-                        await client.get_warehouse_snapshot(page_size=page_size)
-                    )
+                    return _jsonable_dict(await client.get_warehouse())
             except Exception as error:
                 return _safe_failure(error)
 

@@ -18,7 +18,7 @@ pip install atraxis-sdk
 from atraxis import AtraxisClient, CurrencyTransfer
 
 with AtraxisClient("agk_example.redacted") as client:
-    warehouse = client.get_warehouse_snapshot()
+    warehouse = client.get_warehouse()
     for item in warehouse.items:
         print(item.warehouse_item_id, item.name, item.quantity)
 
@@ -54,7 +54,7 @@ asyncio.run(main())
 
 ## Что умеет SDK
 
-- `get_warehouse`, `iter_warehouse`, `get_warehouse_snapshot` — склад гильдии;
+- `get_warehouse`, `iter_warehouse` — весь склад гильдии одним запросом;
 - `list_currencies`, `upsert_currency` — внутренние валюты;
 - `get_balances` — балансы игрока;
 - `transfer` — единая операция из 1–10 переводов;
@@ -123,7 +123,7 @@ problem response и `request_id`.
 Для учёта пополнений читайте `iter_activity()`. В новых операциях `warehouse_deposit`
 поле `deposit_method` равно `guild_deposit` для обычного пополнения, в том числе команды
 «Внести», и `tagged_transfer` для команды «Передать {ТЕГ}». Поле `source` уточняет канал:
-`chat` — чат Авроры, `game` — страница гильдии или основной бот. Через
+`chat` — чат Авроры, `game` — страница гильдии или основной бот. Поле
 `warehouse_item` сохраняет характеристики конкретного экземпляра и количество в позиции до и
 после передачи, даже если позднее предмет исчезнет со склада. В старых записях этого поля нет:
 SDK не подставляет вместо исторических данных текущее состояние.
@@ -160,11 +160,10 @@ if last_event_id is not None:
 отсутствовать. Налоговые начисления учитываются отдельно и в этой истории операций не
 возвращаются.
 
-Для первоначальной сверки используйте `get_warehouse_snapshot()`. Метод собирает все страницы
-одной ревизии и до трёх раз начинает загрузку заново, если склад изменился. В результате доступен
-`activity_checkpoint`: передайте его в `iter_new_activity`, чтобы затем получать передачи после
-снимка. Изменения склада от налогов и системных механик меняют ревизию, но не добавляются в историю
-передач, поэтому периодически повторяйте полную сверку склада.
+Для первоначальной сверки вызовите `get_warehouse()`: метод возвращает весь склад без пагинации.
+В ответе доступен `activity_checkpoint`. Передайте его в `iter_new_activity`, чтобы затем получать
+операции, появившиеся после этой сверки. Налоги и системные механики могут менять склад без записи
+в истории передач, поэтому периодически запрашивайте склад заново.
 
 ## Подключение к Codex и Claude Code
 
