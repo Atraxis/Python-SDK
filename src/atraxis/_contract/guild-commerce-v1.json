@@ -153,6 +153,21 @@
           }
         }
       },
+      "InvalidPlayerIdentity": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Платформа или идентификатор игрока недопустимы.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      },
       "NotFound": {
         "content": {
           "application/problem+json": {
@@ -162,6 +177,21 @@
           }
         },
         "description": "Игрок, валюта или позиция склада не найдены.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestID"
+          }
+        }
+      },
+      "PlayerNotFound": {
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        },
+        "description": "Активный игрок с таким подтверждённым ID не найден.",
         "headers": {
           "X-Request-ID": {
             "$ref": "#/components/headers/RequestID"
@@ -361,6 +391,10 @@
               "system"
             ],
             "type": "string"
+          },
+          "source_identity": {
+            "$ref": "#/components/schemas/PlayerIdentity",
+            "description": "Фактический provider slug и внешний ID, с которых игрок выполнил новое пополнение. У старых, административных и системных записей поле отсутствует. Значение фиксируется во время операции и не меняется после перепривязки аккаунта; platform здесь не game."
           },
           "to": {
             "$ref": "#/components/schemas/ActivityParty",
@@ -752,6 +786,20 @@
         "title": "Внутренняя валюта",
         "type": "object"
       },
+      "IdentityPlatform": {
+        "description": "game либо зарегистрированный server-owned provider slug. Список провайдеров открыт для расширения; закрытого enum здесь нет.",
+        "example": "telegram",
+        "maxLength": 32,
+        "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+        "type": "string"
+      },
+      "IdentityPlayerID": {
+        "description": "Идентификатор в пространстве platform. Для game это DecimalID; внешний ID остаётся непрозрачной строкой и не преобразуется.",
+        "example": "987654321",
+        "maxLength": 255,
+        "minLength": 1,
+        "type": "string"
+      },
       "NonNegativeAmount": {
         "description": "Неотрицательное целое значение не больше 9 000 000 000 000 000.",
         "example": "0",
@@ -850,6 +898,42 @@
         "required": [
           "player_id",
           "balances"
+        ],
+        "type": "object"
+      },
+      "PlayerIdentities": {
+        "additionalProperties": false,
+        "description": "Все текущие подтверждённые идентификаторы одного активного персонажа.",
+        "properties": {
+          "identities": {
+            "description": "game всегда первый; остальные элементы отсортированы по platform.",
+            "items": {
+              "$ref": "#/components/schemas/PlayerIdentity"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "identities"
+        ],
+        "type": "object"
+      },
+      "PlayerIdentity": {
+        "additionalProperties": false,
+        "description": "Одна связанная пара пространства идентификаторов и ID игрока.",
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/IdentityPlatform"
+          },
+          "player_id": {
+            "$ref": "#/components/schemas/IdentityPlayerID"
+          }
+        },
+        "required": [
+          "platform",
+          "player_id"
         ],
         "type": "object"
       },
@@ -1560,13 +1644,13 @@
   "info": {
     "description": "Управление складом и внутренними валютами гильдии из бота, сайта или учётной системы.",
     "title": "API гильдии Atraxis",
-    "version": "1.3.0"
+    "version": "1.4.0"
   },
   "openapi": "3.1.0",
   "paths": {
     "/activity": {
       "get": {
-        "description": "По умолчанию возвращает историю от новых операций к старым. Параметр order явно задаёт порядок, а after_event_id только исключает указанную и все более старые записи — он не меняет порядок. cursor можно использовать вместе с after_event_id для продолжения той же выборки. Для последовательной синхронизации используйте order=asc, пройдите все страницы по next_cursor и сохраните event_id последней обработанной записи. Для пополнений deposit_method показывает, поступил ли предмет обычным способом или через команду «Передать ТЕГ», а warehouse_item сохраняет характеристики конкретного экземпляра и количества до и после операции. В старых записях warehouse_item может отсутствовать. available_since показывает начало доступной истории. Налоговые начисления учитываются отдельно и в эту историю не входят.",
+        "description": "По умолчанию возвращает историю от новых операций к старым. Параметр order явно задаёт порядок, а after_event_id только исключает указанную и все более старые записи — он не меняет порядок. cursor можно использовать вместе с after_event_id для продолжения той же выборки. Для последовательной синхронизации используйте order=asc, пройдите все страницы по next_cursor и сохраните event_id последней обработанной записи. Для пополнений deposit_method показывает, поступил ли предмет обычным способом или через команду «Передать ТЕГ», source_identity фиксирует исходную платформу и внешний ID игрока, а warehouse_item сохраняет характеристики конкретного экземпляра и количества до и после операции. В старых записях warehouse_item может отсутствовать. available_since показывает начало доступной истории. Налоговые начисления учитываются отдельно и в эту историю не входят.",
         "operationId": "listGuildActivity",
         "parameters": [
           {
@@ -1611,6 +1695,10 @@
                       "occurred_at": "2026-09-12T12:30:00Z",
                       "operation_id": "00000000-0000-4000-8000-000000000002",
                       "source": "chat",
+                      "source_identity": {
+                        "platform": "telegram",
+                        "player_id": "987654321"
+                      },
                       "to": {
                         "type": "guild"
                       },
@@ -1962,6 +2050,103 @@
         ]
       }
     },
+    "/players/identities": {
+      "get": {
+        "description": "Принимает игровой ID либо точный внешний ID зарегистрированной платформы и возвращает все подтверждённые идентификаторы того же активного персонажа. Членство в гильдии не требуется. game обозначает внутренний Atraxis ID; остальные platform совпадают с полем provider из /api/providers. API воспринимает внешний player_id как непрозрачную строку и не преобразует его. Результат начинается с game, затем платформы отсортированы по slug.",
+        "operationId": "resolvePlayerIdentities",
+        "parameters": [
+          {
+            "description": "game или зарегистрированный server-owned provider slug.",
+            "example": "telegram",
+            "in": "query",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdentityPlatform"
+            }
+          },
+          {
+            "description": "Точный ID на указанной платформе. Для game — положительное десятичное int64 без ведущих нулей; для provider-платформ — непрозрачная строка до 255 байт.",
+            "example": "987654321",
+            "in": "query",
+            "name": "player_id",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/IdentityPlayerID"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "example": {
+                  "identities": [
+                    {
+                      "platform": "game",
+                      "player_id": "100001"
+                    },
+                    {
+                      "platform": "telegram",
+                      "player_id": "987654321"
+                    },
+                    {
+                      "platform": "vk",
+                      "player_id": "123456789"
+                    }
+                  ]
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerIdentities"
+                }
+              }
+            },
+            "description": "Все текущие подтверждённые идентификаторы персонажа.",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestID"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/PlayerNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/InvalidPlayerIdentity"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "summary": "Найти все идентификаторы игрока",
+        "tags": [
+          "Игроки"
+        ],
+        "x-codeSamples": [
+          {
+            "label": "cURL",
+            "lang": "cURL",
+            "source": "curl --request GET \\\n  --url 'https://atraxisonline.com/api/external/v1/players/identities?platform=telegram&player_id=987654321' \\\n  --header 'Authorization: Bearer agk_example.redacted'"
+          },
+          {
+            "label": "Python · sync",
+            "lang": "Python",
+            "source": "from atraxis import AtraxisClient\n\nwith AtraxisClient(\"agk_example.redacted\") as client:\n    identities = client.resolve_player_identities(\"telegram\", \"987654321\")\n    game_id = identities.by_platform[\"game\"]"
+          },
+          {
+            "label": "Python · async",
+            "lang": "Python",
+            "source": "import asyncio\nfrom atraxis import AsyncAtraxisClient\n\nasync def main() -> None:\n    async with AsyncAtraxisClient(\"agk_example.redacted\") as client:\n        identities = await client.resolve_player_identities(\"telegram\", \"987654321\")\n        print(identities.by_platform)\n\nasyncio.run(main())"
+          }
+        ]
+      }
+    },
     "/transfers": {
       "post": {
         "description": "Выполняет 1–10 переводов одной операцией. Если один перевод невозможен, не выполняется ни один. Предметы передаются guild → player. Валюта поддерживает supply ↔ guild, guild ↔ player и, при transferable: true, player → player.",
@@ -2244,6 +2429,10 @@
       "name": "Валюты"
     },
     {
+      "description": "Связанные игровые и платформенные идентификаторы игроков.",
+      "name": "Игроки"
+    },
+    {
       "description": "Выдача предметов и переводы внутренней валюты.",
       "name": "Переводы"
     },
@@ -2257,14 +2446,19 @@
     "guides": {
       "items": [
         {
-          "description": "Свой склад пополняют на странице гильдии или через основной бот. В привязанном чате гильдии доступна команда «Внести …». В любом чате Авроры, где работает обычная передача игроку, команда «Передать ТЕГ …» отправляет ценности на склад выбранной гильдии. Тег указывается первым аргументом без скобок. В общем чате эта команда не работает.",
+          "description": "Свой склад пополняют на странице гильдии или через основной бот. В привязанном чате гильдии доступны команды «Внести …» и «Забрать …»; выдача разрешена только участнику этой гильдии с правом брать предметы со склада. В одной команде можно перечислить до 10 позиций через точку с запятой; «номер N» использует последний список соответствующего раздела меню склада из основного бота. В любом чате Авроры, где работает обычная передача игроку, команда «Передать ТЕГ …» отправляет ценности на склад выбранной гильдии. Тег можно указать без скобок или как «{ТЕГ}». Если получатель указан ответом, упоминанием или пересланным сообщением, команда без скобок считается обычной передачей этому игроку; скобки всегда означают передачу на склад. В общем чате команды склада не работают.",
           "id": "warehouse-refill",
-          "title": "Как пополнить склад"
+          "title": "Как пополнить склад и забрать предметы"
         },
         {
           "description": "Через API предметы, кредиты и Эхоны передаются только со склада игроку. Списать их у игрока через API нельзя.",
           "id": "warehouse-delivery",
           "title": "API выдаёт ценности из гильдии"
+        },
+        {
+          "description": "Передайте platform и известный player_id в метод разрешения идентичностей. В ответе будут игровой ID и все подтверждённые платформенные ID этого персонажа. Platform — это game либо server-owned provider slug из /api/providers; добавление новой платформы не меняет формат ответа.",
+          "id": "cross-platform-identities",
+          "title": "Одна лавка для всех платформ"
         },
         {
           "description": "Гильдия задаёт код и название валюты. Её можно выпускать, выдавать, возвращать и погашать; supply обозначает выпуск или погашение. Переводы между игроками требуют transferable: true.",
@@ -2282,7 +2476,8 @@
     "introduction": [
       "Лидер выпускает токен в «Интеграциях гильдии». Токен показывается один раз.",
       "Передавайте его по HTTPS в заголовке Authorization со схемой Bearer.",
-      "Один Idempotency-Key должен соответствовать одному заказу или переводу."
+      "Один Idempotency-Key должен соответствовать одному заказу или переводу.",
+      "Лавка может преобразовать ID покупателя с любой зарегистрированной платформы в игровой ID без отдельной регистрации покупателя."
     ],
     "notes": [
       "Передавать идентификатор гильдии не надо: API определит её по токену.",
@@ -2291,6 +2486,7 @@
       "JSON-тело — до 32 КиБ. Неизвестные поля запрещены.",
       "Лимит для истории: 300 запросов в минуту с IP и 60 на гильдию. Для остальных методов — 100 с IP и 60 на гильдию. После 429 ждите Retry-After.",
       "Для регулярной проверки новых операций используйте order=asc, сохраняйте последний обработанный event_id и передавайте его как after_event_id.",
+      "В новых пополнениях source_identity содержит точную платформу и внешний ID, с которых игрок выполнил вклад; исторические записи не дополняются задним числом.",
       "Каждый ответ содержит X-Request-ID для обращения в поддержку."
     ],
     "subtitle": "Проверяйте склад, выдавайте товары и ведите внутреннюю валюту из своего сервиса.",

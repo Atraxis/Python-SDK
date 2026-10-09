@@ -146,7 +146,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
 
     @mcp.tool(annotations=readonly)
     def atraxis_api_overview() -> dict[str, object]:
-        """Return public API metadata and the six operation identifiers. No token is required."""
+        """Return public API metadata and operation identifiers. No token is required."""
         spec = _contract()
         info = _mapping_or_empty(spec.get("info"))
         paths = _mapping_or_empty(spec.get("paths"))
@@ -216,6 +216,20 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
             try:
                 async with _client(token, base_url) as client:
                     return _jsonable_dict(await client.get_balances(player_id))
+            except Exception as error:
+                return _safe_failure(error)
+
+        @mcp.tool(annotations=readonly)
+        async def atraxis_resolve_player_identities(
+            platform: str,
+            player_id: str,
+        ) -> dict[str, object]:
+            """Resolve one game or platform ID to all confirmed IDs of that player."""
+            try:
+                async with _client(token, base_url) as client:
+                    return _jsonable_dict(
+                        await client.resolve_player_identities(platform, player_id)
+                    )
             except Exception as error:
                 return _safe_failure(error)
 

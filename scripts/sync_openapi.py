@@ -18,6 +18,7 @@ EXPECTED_OPERATIONS = {
     ("/warehouse", "get"),
     ("/currencies", "get"),
     ("/currencies/{code}", "put"),
+    ("/players/identities", "get"),
     ("/balances/{player_id}", "get"),
     ("/transfers", "post"),
     ("/activity", "get"),
@@ -35,9 +36,13 @@ EXPECTED_SCHEMAS = {
     "DecimalID",
     "GameItemAsset",
     "GuildCurrencyAsset",
+    "IdentityPlatform",
+    "IdentityPlayerID",
     "NonNegativeAmount",
     "Party",
     "PlayerBalances",
+    "PlayerIdentities",
+    "PlayerIdentity",
     "Problem",
     "Transfer",
     "TransferResult",
@@ -61,6 +66,7 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
         "kind",
         "source",
         "deposit_method",
+        "source_identity",
         "from",
         "to",
         "asset",
@@ -84,6 +90,8 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
     "GameItemAsset": {"type", "warehouse_item_id"},
     "GuildCurrencyAsset": {"code", "type"},
     "PlayerBalances": {"balances", "player_id"},
+    "PlayerIdentities": {"identities"},
+    "PlayerIdentity": {"platform", "player_id"},
     "Problem": {"detail", "request_id", "status", "title", "type"},
     "Transfer": {"amount", "asset", "from", "to"},
     "TransferResult": {"operation_id", "transfers"},
@@ -198,6 +206,8 @@ EXPECTED_PROPERTY_SETS = {frozenset(fields) for fields in EXPECTED_NAMED_SCHEMA_
     frozenset({"currency_code", "type"}),
     frozenset({"item_id", "type", "warehouse_item_id"}),
     frozenset({"items"}),
+    frozenset({"identities"}),
+    frozenset({"platform", "player_id"}),
     frozenset({"player_id", "type"}),
     frozenset({"transfers"}),
     frozenset({"type"}),
@@ -214,6 +224,7 @@ EXPECTED_DOC_FIELDS = {
 EXPECTED_GUIDE_IDS = (
     "warehouse-refill",
     "warehouse-delivery",
+    "cross-platform-identities",
     "guild-currencies",
     "safe-retries",
 )
@@ -287,6 +298,53 @@ def validate_activity_asset(schemas: Mapping[str, Any]) -> None:
             raise ValueError("ActivityAsset variants do not match the reviewed contract")
     if expected:
         raise ValueError("ActivityAsset variants do not match the reviewed contract")
+
+
+def validate_identity_contract(paths: Mapping[str, Any], schemas: Mapping[str, Any]) -> None:
+    path = require_mapping(paths.get("/players/identities"), "paths./players/identities")
+    operation = require_mapping(path.get("get"), "GET /players/identities")
+    parameters = require_list(operation.get("parameters"), "identity parameters")
+    actual: dict[str, Mapping[str, Any]] = {}
+    for value in parameters:
+        parameter = require_mapping(value, "identity parameter")
+        name = require_string(parameter.get("name"), "identity parameter name")
+        actual[name] = parameter
+    if len(parameters) != 2 or set(actual) != {"platform", "player_id"}:
+        raise ValueError("identity parameters do not match the reviewed public contract")
+    if any(
+        value.get("in") != "query" or value.get("required") is not True for value in actual.values()
+    ):
+        raise ValueError("identity parameters do not match the reviewed public contract")
+    expected_parameter_schemas = {
+        "platform": "#/components/schemas/IdentityPlatform",
+        "player_id": "#/components/schemas/IdentityPlayerID",
+    }
+    for name, reference in expected_parameter_schemas.items():
+        schema = require_mapping(actual[name].get("schema"), f"identity parameter {name} schema")
+        if schema.get("$ref") != reference:
+            raise ValueError("identity parameters do not match the reviewed public contract")
+
+    responses = require_mapping(operation.get("responses"), "identity responses")
+    ok_response = require_mapping(responses.get("200"), "identity 200 response")
+    content = require_mapping(ok_response.get("content"), "identity 200 content")
+    media = require_mapping(content.get("application/json"), "identity 200 JSON")
+    response_schema = require_mapping(media.get("schema"), "identity 200 schema")
+    if response_schema.get("$ref") != "#/components/schemas/PlayerIdentities":
+        raise ValueError("identity response does not match the reviewed public contract")
+
+    platform = require_mapping(schemas.get("IdentityPlatform"), "IdentityPlatform")
+    if platform.get("type") != "string" or platform.get("pattern") != "^[a-z][a-z0-9_-]{0,31}$":
+        raise ValueError("IdentityPlatform does not match the reviewed public contract")
+    if "enum" in platform:
+        raise ValueError("IdentityPlatform must stay extensible and cannot use an enum")
+
+    player_id = require_mapping(schemas.get("IdentityPlayerID"), "IdentityPlayerID")
+    if (
+        player_id.get("type") != "string"
+        or player_id.get("minLength") != 1
+        or player_id.get("maxLength") != 255
+    ):
+        raise ValueError("IdentityPlayerID does not match the reviewed public contract")
 
 
 def require_string(value: object, name: str) -> str:
@@ -410,6 +468,7 @@ def validate(spec_value: object) -> Mapping[str, Any]:
         if schema_properties(schemas, name) != fields:
             raise ValueError("schema fields do not match the reviewed public contract")
     validate_activity_asset(schemas)
+    validate_identity_contract(paths, schemas)
     if not schema_property_sets(spec).issubset(EXPECTED_PROPERTY_SETS):
         raise ValueError("schema fields do not match the reviewed public contract")
     return spec

@@ -11,6 +11,9 @@ from typing import Any
 
 MAX_AMOUNT = 9_000_000_000_000_000
 CURRENCY_CODE_PATTERN = re.compile(r"^[A-Z][A-Z0-9_]{0,15}$")
+IDENTITY_PLATFORM_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+MAX_GAME_PLAYER_ID = 9_223_372_036_854_775_807
+MAX_EXTERNAL_PLAYER_ID_BYTES = 255
 
 
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
@@ -130,6 +133,33 @@ def _identifier(value: object, name: str) -> int:
     if parsed <= 0:
         raise ValueError(f"{name} must be positive")
     return parsed
+
+
+def _identity_platform(value: object) -> str:
+    if not isinstance(value, str) or not IDENTITY_PLATFORM_PATTERN.fullmatch(value):
+        raise ValueError("platform must match [a-z][a-z0-9_-]{0,31}")
+    return value
+
+
+def _identity_player_id(value: object, platform: str) -> str:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or len(value.encode("utf-8")) > MAX_EXTERNAL_PLAYER_ID_BYTES
+    ):
+        raise ValueError("player_id must be an exact non-empty identifier up to 255 bytes")
+    if platform == "game":
+        if (
+            not value.isascii()
+            or not value.isdecimal()
+            or (len(value) > 1 and value.startswith("0"))
+        ):
+            raise ValueError("game player_id must be a canonical positive integer")
+        parsed = int(value)
+        if parsed <= 0 or parsed > MAX_GAME_PLAYER_ID:
+            raise ValueError("game player_id must be a canonical positive integer")
+    return value
 
 
 def _validate_positive_amount(value: int) -> int:
@@ -526,6 +556,43 @@ class PlayerBalances:
 
 
 @dataclass(frozen=True, slots=True)
+class PlayerIdentity:
+    platform: str
+    player_id: str
+
+    @classmethod
+    def from_dict(cls, value: object) -> PlayerIdentity:
+        data = _mapping(value, "player identity")
+        platform = _identity_platform(data.get("platform"))
+        return cls(
+            platform=platform,
+            player_id=_identity_player_id(data.get("player_id"), platform),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PlayerIdentities:
+    identities: tuple[PlayerIdentity, ...]
+
+    @classmethod
+    def from_dict(cls, value: object) -> PlayerIdentities:
+        data = _mapping(value, "player identities")
+        identities = tuple(
+            PlayerIdentity.from_dict(item) for item in _items(data.get("identities"), "identities")
+        )
+        platforms = [identity.platform for identity in identities]
+        if not identities or platforms[0] != "game":
+            raise ValueError("identities must start with the game identity")
+        if len(set(platforms)) != len(platforms) or platforms[1:] != sorted(platforms[1:]):
+            raise ValueError("identity platforms must be unique and sorted")
+        return cls(identities=identities)
+
+    @property
+    def by_platform(self) -> dict[str, str]:
+        return {identity.platform: identity.player_id for identity in self.identities}
+
+
+@dataclass(frozen=True, slots=True)
 class TransferParty:
     type: str
     player_id: int | None = None
@@ -813,6 +880,7 @@ class ActivityEvent:
     balance_after: int | None
     leg_index: int
     deposit_method: str | None = None
+    source_identity: PlayerIdentity | None = None
     warehouse_item: ActivityWarehouseItem | None = None
 
     @classmethod
@@ -825,13 +893,23 @@ class ActivityEvent:
             raise ValueError("unknown warehouse deposit method")
         if kind != "warehouse_deposit" and deposit_method is not None:
             raise ValueError("deposit_method is only valid for warehouse deposits")
+        from_party = ActivityParty.from_dict(data.get("from"))
+        source_identity = (
+            PlayerIdentity.from_dict(data["source_identity"]) if "source_identity" in data else None
+        )
+        if source_identity is not None and (
+            kind != "warehouse_deposit"
+            or from_party.type != "player"
+            or source_identity.platform == "game"
+        ):
+            raise ValueError("source_identity is only valid for external warehouse deposits")
         return cls(
             event_id=_text(data, "event_id"),
             occurred_at=occurred_at,
             operation_id=_text(data, "operation_id"),
             kind=kind,
             source=_text(data, "source"),
-            from_party=ActivityParty.from_dict(data.get("from")),
+            from_party=from_party,
             to_party=ActivityParty.from_dict(data.get("to")),
             asset=ActivityAsset.from_dict(data.get("asset")),
             gross=_amount(data, "gross", minimum=1),
@@ -841,6 +919,7 @@ class ActivityEvent:
             balance_after=_amount(data, "balance_after") if "balance_after" in data else None,
             leg_index=_integer(data, "leg_index"),
             deposit_method=deposit_method,
+            source_identity=source_identity,
             warehouse_item=(
                 ActivityWarehouseItem.from_dict(data["warehouse_item"])
                 if "warehouse_item" in data

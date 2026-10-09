@@ -15,6 +15,7 @@ PUBLIC_ACTIVITY_FIELDS = {
     "kind",
     "source",
     "deposit_method",
+    "source_identity",
     "from",
     "to",
     "asset",
@@ -72,6 +73,10 @@ def test_packaged_contract_hash_and_allowlists() -> None:
         "upgrade_level",
     }
     assert set(spec["components"]["schemas"]["Activity"]["properties"]) == (PUBLIC_ACTIVITY_FIELDS)
+    identity_platform = spec["components"]["schemas"]["IdentityPlatform"]
+    assert identity_platform["pattern"] == "^[a-z][a-z0-9_-]{0,31}$"
+    assert "enum" not in identity_platform
+    assert "/players/identities" in spec["paths"]
 
 
 def test_packaged_contract_passes_current_sync_validator(tmp_path: Path) -> None:

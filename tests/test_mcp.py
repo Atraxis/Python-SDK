@@ -27,6 +27,7 @@ async def test_mcp_read_tools_require_token_and_writes_require_explicit_flag() -
     assert "atraxis_get_warehouse" in read_only
     assert "atraxis_get_warehouse_snapshot" not in read_only
     assert "atraxis_get_activity" in read_only
+    assert "atraxis_resolve_player_identities" in read_only
     assert "atraxis_upsert_currency" not in read_only
     assert "atraxis_transfer" not in read_only
 
@@ -46,6 +47,23 @@ async def test_mcp_activity_accepts_a_saved_event_id() -> None:
 
     activity = next(tool for tool in result.tools if tool.name == "atraxis_get_activity")
     assert "after_event_id" in activity.input_schema["properties"]
+
+
+@pytest.mark.asyncio
+async def test_mcp_identity_lookup_keeps_provider_ids_as_strings() -> None:
+    server = build_server(
+        token="agk_example.redacted",
+        base_url="https://example.test/api/external/v1",
+        allow_writes=False,
+    )
+    async with Client(server) as client:  # type: ignore[arg-type]
+        result = await client.list_tools()
+
+    identity = next(
+        tool for tool in result.tools if tool.name == "atraxis_resolve_player_identities"
+    )
+    assert identity.input_schema["properties"]["platform"]["type"] == "string"
+    assert identity.input_schema["properties"]["player_id"]["type"] == "string"
 
 
 @pytest.mark.asyncio
@@ -74,7 +92,7 @@ async def test_mcp_contract_tool_runs_through_real_client_session() -> None:
 
     assert result.is_error is False
     assert result.structured_content is not None
-    assert result.structured_content["version"] == "1.3.0"
+    assert result.structured_content["version"] == "1.4.0"
 
     assert endpoint.is_error is False
     assert endpoint.structured_content is not None

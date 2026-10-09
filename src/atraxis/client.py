@@ -20,10 +20,14 @@ from ._transport import (
 from .errors import AtraxisResponseError
 from .models import (
     CURRENCY_CODE_PATTERN,
+    IDENTITY_PLATFORM_PATTERN,
+    MAX_EXTERNAL_PLAYER_ID_BYTES,
+    MAX_GAME_PLAYER_ID,
     ActivityEvent,
     ActivityPage,
     Currency,
     PlayerBalances,
+    PlayerIdentities,
     TransferInput,
     TransferResult,
     Warehouse,
@@ -57,6 +61,28 @@ def _player_id(value: int) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError("player_id must be a positive integer")
     return value
+
+
+def _identity_params(platform: str, player_id: str | int) -> dict[str, QueryValue]:
+    if not isinstance(platform, str) or not IDENTITY_PLATFORM_PATTERN.fullmatch(platform):
+        raise ValueError("platform must match [a-z][a-z0-9_-]{0,31}")
+    if isinstance(player_id, bool) or not isinstance(player_id, (str, int)):
+        raise ValueError("player_id must be a string or integer")
+    value = str(player_id)
+    if (
+        not value
+        or value != value.strip()
+        or len(value.encode("utf-8")) > MAX_EXTERNAL_PLAYER_ID_BYTES
+    ):
+        raise ValueError("player_id must be an exact non-empty identifier up to 255 bytes")
+    if platform == "game" and (
+        not value.isascii()
+        or not value.isdecimal()
+        or (len(value) > 1 and value.startswith("0"))
+        or not 1 <= int(value) <= MAX_GAME_PLAYER_ID
+    ):
+        raise ValueError("game player_id must be a canonical positive integer")
+    return {"platform": platform, "player_id": value}
 
 
 def _currency_update(code: str, name: str, transferable: bool) -> dict[str, object]:
@@ -188,6 +214,21 @@ class AtraxisClient:
         response = self._transport.request("GET", f"balances/{_player_id(player_id)}")
         try:
             return PlayerBalances.from_dict(object_payload(response))
+        except (TypeError, ValueError) as exc:
+            raise AtraxisResponseError(response_request_id(response)) from exc
+
+    def resolve_player_identities(
+        self,
+        platform: str,
+        player_id: str | int,
+    ) -> PlayerIdentities:
+        response = self._transport.request(
+            "GET",
+            "players/identities",
+            params=_identity_params(platform, player_id),
+        )
+        try:
+            return PlayerIdentities.from_dict(object_payload(response))
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 
@@ -335,6 +376,21 @@ class AsyncAtraxisClient:
         response = await self._transport.request("GET", f"balances/{_player_id(player_id)}")
         try:
             return PlayerBalances.from_dict(object_payload(response))
+        except (TypeError, ValueError) as exc:
+            raise AtraxisResponseError(response_request_id(response)) from exc
+
+    async def resolve_player_identities(
+        self,
+        platform: str,
+        player_id: str | int,
+    ) -> PlayerIdentities:
+        response = await self._transport.request(
+            "GET",
+            "players/identities",
+            params=_identity_params(platform, player_id),
+        )
+        try:
+            return PlayerIdentities.from_dict(object_payload(response))
         except (TypeError, ValueError) as exc:
             raise AtraxisResponseError(response_request_id(response)) from exc
 

@@ -13,6 +13,7 @@ from atraxis import (
     AtraxisResponseError,
     CurrencyTransfer,
     ItemTransfer,
+    PlayerIdentities,
     __version__,
 )
 from atraxis.models import ActivityAsset, ActivityEvent
@@ -92,6 +93,7 @@ def activity_event(event_id: str, occurred_at: str) -> dict[str, object]:
         "kind": "warehouse_deposit",
         "source": "chat",
         "deposit_method": "tagged_transfer",
+        "source_identity": {"platform": "future-chat", "player_id": "user/ABC:42"},
         "from": {"type": "player", "player_id": "42"},
         "to": {"type": "guild"},
         "asset": {
@@ -174,6 +176,81 @@ def test_currency_configuration_has_only_user_facing_fields() -> None:
     assert currency.total_supply == 9_000_000_000_000_000
     assert seen is not None
     assert json.loads(seen.content) == {"name": "Token", "transferable": True}
+
+
+def test_resolve_player_identities_accepts_extensible_opaque_provider_ids() -> None:
+    seen: httpx.Request | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen = request
+        return json_response(
+            {
+                "identities": [
+                    {"platform": "game", "player_id": "100001"},
+                    {"platform": "future-chat", "player_id": "user/ABC:42"},
+                    {"platform": "vk", "player_id": "123456789"},
+                ]
+            }
+        )
+
+    with AtraxisClient(TOKEN, base_url=BASE_URL, transport=httpx.MockTransport(handler)) as client:
+        identities = client.resolve_player_identities("future-chat", "user/ABC:42")
+
+    assert isinstance(identities, PlayerIdentities)
+    assert identities.by_platform == {
+        "game": "100001",
+        "future-chat": "user/ABC:42",
+        "vk": "123456789",
+    }
+    assert seen is not None
+    assert seen.url.path.endswith("/players/identities")
+    assert dict(seen.url.params) == {
+        "platform": "future-chat",
+        "player_id": "user/ABC:42",
+    }
+
+
+@pytest.mark.parametrize(
+    ("platform", "player_id"),
+    [
+        ("FutureChat", "123"),
+        ("game", "01"),
+        ("game", 0),
+        ("vk", " player "),
+        ("vk", "я" * 128),
+    ],
+)
+def test_resolve_player_identities_rejects_invalid_inputs(
+    platform: str, player_id: str | int
+) -> None:
+    transport = httpx.MockTransport(lambda _request: json_response({"identities": []}))
+    with (
+        AtraxisClient(TOKEN, base_url=BASE_URL, transport=transport) as client,
+        pytest.raises(ValueError),
+    ):
+        client.resolve_player_identities(platform, player_id)
+
+
+@pytest.mark.asyncio
+async def test_async_resolve_player_identities_accepts_game_integer() -> None:
+    seen: httpx.Request | None = None
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal seen
+        seen = request
+        return json_response({"identities": [{"platform": "game", "player_id": "100001"}]})
+
+    async with AsyncAtraxisClient(
+        TOKEN,
+        base_url=BASE_URL,
+        transport=httpx.MockTransport(handler),
+    ) as client:
+        identities = await client.resolve_player_identities("game", 100001)
+
+    assert identities.by_platform == {"game": "100001"}
+    assert seen is not None
+    assert dict(seen.url.params) == {"platform": "game", "player_id": "100001"}
 
 
 def test_transfer_generates_key_and_keeps_it_across_retry(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -283,6 +360,10 @@ async def test_async_client_and_activity_pagination() -> None:
                         "kind": "warehouse_deposit",
                         "source": "chat",
                         "deposit_method": "tagged_transfer",
+                        "source_identity": {
+                            "platform": "future-chat",
+                            "player_id": "user/ABC:42",
+                        },
                         "from": {"type": "player", "player_id": "42"},
                         "to": {"type": "guild"},
                         "asset": {
@@ -310,6 +391,9 @@ async def test_async_client_and_activity_pagination() -> None:
     assert events[0].net == 1
     assert events[0].from_party.player_id == 42
     assert events[0].deposit_method == "tagged_transfer"
+    assert events[0].source_identity is not None
+    assert events[0].source_identity.platform == "future-chat"
+    assert events[0].source_identity.player_id == "user/ABC:42"
     assert events[0].asset.warehouse_item_id == 700001
     assert requests[0].url.path.endswith("/activity")
 
@@ -434,3 +518,21 @@ def test_transfer_builders_cover_all_public_directions() -> None:
 def test_activity_asset_requires_fields_for_its_type(payload: dict[str, str]) -> None:
     with pytest.raises(ValueError):
         ActivityAsset.from_dict(payload)
+
+
+@pytest.mark.parametrize(
+    ("kind", "platform"),
+    [
+        ("warehouse_withdrawal", "vk"),
+        ("warehouse_deposit", "game"),
+    ],
+)
+def test_activity_rejects_invalid_source_identity(kind: str, platform: str) -> None:
+    payload = activity_event(
+        "00000000-0000-4000-8000-000000000001",
+        "2026-10-01T10:00:00Z",
+    )
+    payload["kind"] = kind
+    payload["source_identity"] = {"platform": platform, "player_id": "42"}
+    with pytest.raises(ValueError):
+        ActivityEvent.from_dict(payload)
