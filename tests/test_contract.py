@@ -151,3 +151,24 @@ def test_contract_uses_only_synthetic_credentials() -> None:
     assert "Authorization: Bearer agk_" not in payload.replace(
         "Authorization: Bearer agk_example.redacted", ""
     )
+
+
+def test_sync_validator_rejects_mixed_audience_guides(tmp_path: Path) -> None:
+    spec = json.loads(files("atraxis._contract").joinpath("public-v1.json").read_text())
+    spec["x-atraxis-docs"]["audiences"][0]["guide_ids"].append("warehouse-refill")
+    source = tmp_path / "contract.json"
+    source.write_text(json.dumps(spec), encoding="utf-8")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/sync_openapi.py",
+            str(source),
+            "--output",
+            str(tmp_path / "snapshot.json"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "audience groups" in result.stderr

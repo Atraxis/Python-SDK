@@ -270,6 +270,7 @@ EXPECTED_PROPERTY_SETS = {frozenset(fields) for fields in EXPECTED_NAMED_SCHEMA_
     frozenset({"type"}),
 }
 EXPECTED_DOC_FIELDS = {
+    "audiences",
     "eyebrow",
     "guides",
     "introduction",
@@ -445,6 +446,24 @@ def validate_documentation(spec: Mapping[str, Any]) -> None:
             raise ValueError("documentation guides do not match the reviewed contract")
         require_string(guide.get("title"), f"guide {index}.title")
         require_string(guide.get("description"), f"guide {index}.description")
+
+    audiences = require_list(docs.get("audiences"), "x-atraxis-docs.audiences")
+    if len(audiences) != 2:
+        raise ValueError("documentation audiences do not match the reviewed contract")
+    expected_guides = {"public": ["public-events"], "guild": list(EXPECTED_GUIDE_IDS[:-1])}
+    for value, expected_id in zip(audiences, ("public", "guild"), strict=True):
+        audience = require_mapping(value, "audience")
+        if set(audience) != {"id", "title", "description", "guides_title", "guide_ids", "notes"}:
+            raise ValueError("documentation audience fields do not match the reviewed contract")
+        if (
+            audience.get("id") != expected_id
+            or audience.get("guide_ids") != expected_guides[expected_id]
+        ):
+            raise ValueError("documentation audience groups do not match the reviewed contract")
+        for field in ("title", "description", "guides_title"):
+            require_string(audience.get(field), f"audience.{field}")
+        for note in require_list(audience.get("notes"), "audience.notes"):
+            require_string(note, "audience note")
 
     tools = require_mapping(docs.get("tools"), "x-atraxis-docs.tools")
     if set(tools) != {"title", "description", "items"}:

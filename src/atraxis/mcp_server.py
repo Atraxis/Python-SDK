@@ -134,7 +134,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
     mcp = MCPServer(
         "atraxis",
         title="Atraxis API",
-        description="Safe local tools for the public Atraxis guild API.",
+        description="Atraxis events, announcements and guild tools.",
         instructions=(
             "The warehouse tool returns the complete warehouse; activity can span pages. "
             "Never request, repeat, or expose ATRAXIS_API_TOKEN. "
@@ -174,7 +174,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
 
     @mcp.tool(annotations=readonly)
     def atraxis_api_endpoint(operation_id: str) -> dict[str, object]:
-        """Return the curated public OpenAPI fragment for one operation identifier."""
+        """Return OpenAPI documentation for an operation_id."""
         spec = _contract()
         paths = _mapping_or_empty(spec.get("paths"))
         for path, path_item in paths.items():
@@ -194,7 +194,7 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
     async def atraxis_get_events(
         page_size: int = 50, cursor: str | None = None, kind: str | None = None
     ) -> dict[str, object]:
-        """Read explicitly public, unfinished events. No token is required."""
+        """List active and upcoming announced events. No token is required."""
         try:
             async with _client(None, base_url) as client:
                 return _jsonable_dict(
@@ -212,10 +212,11 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
         after_id: str | None = None,
         order: str = "desc",
     ) -> dict[str, object]:
-        """Read public announcements for 90 days.
+        """Read announcements from the last 90 days.
 
-        Drain all pages before saving checkpoint; 410 requires a fresh read.
-        A publication is not a chat delivery receipt.
+        For updates, pass after_id=checkpoint and order="asc". Save the new
+        checkpoint after reading all pages. If the API returns 410, start
+        again without after_id or cursor.
         """
         try:
             async with _client(None, base_url) as client:
