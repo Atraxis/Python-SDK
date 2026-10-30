@@ -31,8 +31,8 @@ PUBLIC_ACTIVITY_FIELDS = {
 
 def test_packaged_contract_hash_and_allowlists() -> None:
     contract_dir = files("atraxis._contract")
-    payload = contract_dir.joinpath("guild-commerce-v1.json").read_bytes()
-    expected = contract_dir.joinpath("guild-commerce-v1.sha256").read_text().strip()
+    payload = contract_dir.joinpath("public-v1.json").read_bytes()
+    expected = contract_dir.joinpath("public-v1.sha256").read_text().strip()
     assert hashlib.sha256(payload).hexdigest() == expected
 
     spec = json.loads(payload)
@@ -80,7 +80,7 @@ def test_packaged_contract_hash_and_allowlists() -> None:
 
 
 def test_packaged_contract_passes_current_sync_validator(tmp_path: Path) -> None:
-    source = files("atraxis._contract").joinpath("guild-commerce-v1.json")
+    source = files("atraxis._contract").joinpath("public-v1.json")
     output = tmp_path / "snapshot.json"
     result = subprocess.run(
         [sys.executable, "scripts/sync_openapi.py", str(source), "--output", str(output)],
@@ -94,7 +94,7 @@ def test_packaged_contract_passes_current_sync_validator(tmp_path: Path) -> None
 
 
 def test_sync_validator_rejects_unreviewed_schema_field(tmp_path: Path) -> None:
-    payload = files("atraxis._contract").joinpath("guild-commerce-v1.json").read_text()
+    payload = files("atraxis._contract").joinpath("public-v1.json").read_text()
     spec = deepcopy(json.loads(payload))
     spec["components"]["schemas"]["Activity"]["properties"]["unexpected"] = {"type": "string"}
     source = tmp_path / "contract.json"
@@ -121,7 +121,7 @@ def test_sync_validator_rejects_unreviewed_schema_field(tmp_path: Path) -> None:
 def test_sync_validator_rejects_unreviewed_documentation_field(
     tmp_path: Path,
 ) -> None:
-    payload = files("atraxis._contract").joinpath("guild-commerce-v1.json").read_text()
+    payload = files("atraxis._contract").joinpath("public-v1.json").read_text()
     spec = deepcopy(json.loads(payload))
     spec["x-atraxis-docs"]["unexpected"] = "not reviewed"
     source = tmp_path / "contract.json"
@@ -146,7 +146,7 @@ def test_sync_validator_rejects_unreviewed_documentation_field(
 
 
 def test_contract_uses_only_synthetic_credentials() -> None:
-    payload = files("atraxis._contract").joinpath("guild-commerce-v1.json").read_text()
+    payload = files("atraxis._contract").joinpath("public-v1.json").read_text()
     assert "agk_example.redacted" in payload
     assert "Authorization: Bearer agk_" not in payload.replace(
         "Authorization: Bearer agk_example.redacted", ""

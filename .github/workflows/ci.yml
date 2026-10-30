@@ -28,7 +28,7 @@ jobs:
       - run: ruff check .
       - run: mypy
       - run: pytest
-      - run: python scripts/sync_openapi.py src/atraxis/_contract/guild-commerce-v1.json --output /tmp/guild-commerce-v1.json
+      - run: python scripts/sync_openapi.py src/atraxis/_contract/public-v1.json --output /tmp/public-v1.json
       - run: python -m build
       - if: matrix.python-version == '3.13'
         run: python -m pip install --force-reinstall dist/*.whl

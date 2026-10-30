@@ -23,6 +23,7 @@ EXPECTED_OPERATIONS = {
     ("/transfers", "post"),
     ("/activity", "get"),
 }
+EXPECTED_OPERATIONS |= {("/events", "get"), ("/announcements", "get")}
 EXPECTED_SCHEMAS = {
     "Activity",
     "ActivityAsset",
@@ -57,6 +58,16 @@ EXPECTED_SCHEMAS = {
     "WarehouseJournalDetails",
     "WarehousePassiveSkill",
     "WarehouseShieldAbility",
+}
+EXPECTED_SCHEMAS |= {
+    "PublicEventLot",
+    "PublicPlayerMention",
+    "PublicEventPage",
+    "PublicAnnouncement",
+    "PublicEvent",
+    "PublicEventLocation",
+    "PublicEventDetails",
+    "PublicAnnouncementPage",
 }
 EXPECTED_NAMED_SCHEMA_FIELDS = {
     "Activity": {
@@ -200,6 +211,52 @@ EXPECTED_NAMED_SCHEMA_FIELDS = {
     "WarehousePassiveSkill": {"base_modifier_percent", "name", "skill_id", "slot"},
     "WarehouseShieldAbility": {"ability_id", "ability_name", "level", "slot"},
 }
+EXPECTED_NAMED_SCHEMA_FIELDS.update(
+    {
+        "PublicAnnouncement": {
+            "event_id",
+            "id",
+            "kind",
+            "mentions",
+            "occurred_at",
+            "published_at",
+            "text",
+        },
+        "PublicAnnouncementPage": {"available_since", "next_cursor", "items", "checkpoint"},
+        "PublicEvent": {
+            "announced_at",
+            "description",
+            "details",
+            "ends_at",
+            "id",
+            "kind",
+            "phase",
+            "starts_at",
+            "status",
+            "title",
+            "updated_at",
+        },
+        "PublicEventDetails": {
+            "boss_current_hp",
+            "boss_max_hp",
+            "format",
+            "guilds",
+            "kills_required",
+            "level",
+            "location",
+            "lots",
+            "research_multiplier",
+            "reward_per_kill",
+            "target",
+            "variant",
+        },
+        "PublicEventLocation": {"name", "y", "x", "approximate"},
+        "PublicEventLot": {"title", "quantity", "id", "ends_at"},
+        "PublicEventPage": {"next_cursor", "server_time", "items"},
+        "PublicPlayerMention": {"name", "player_id"},
+    }
+)
+
 EXPECTED_PROPERTY_SETS = {frozenset(fields) for fields in EXPECTED_NAMED_SCHEMA_FIELDS.values()} | {
     frozenset({"amount", "asset", "from", "index", "to"}),
     frozenset({"balance", "code"}),
@@ -227,6 +284,7 @@ EXPECTED_GUIDE_IDS = (
     "cross-platform-identities",
     "guild-currencies",
     "safe-retries",
+    "public-events",
 )
 EXPECTED_TOOL_LINKS = {
     "python-sdk": "https://github.com/Atraxis/Python-SDK",
@@ -460,6 +518,11 @@ def validate(spec_value: object) -> Mapping[str, Any]:
     }
     if actual_activity_parameters != expected_activity_parameters:
         raise ValueError("activity parameters do not match the reviewed public contract")
+    for path in ("/events", "/announcements"):
+        public_path = require_mapping(paths.get(path), path)
+        operation = require_mapping(public_path.get("get"), f"GET {path}")
+        if operation.get("security") != []:
+            raise ValueError("public events must not require credentials")
     validate_documentation(spec)
     schemas = component_schemas(spec)
     if set(schemas) != EXPECTED_SCHEMAS:
@@ -482,7 +545,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("src/atraxis/_contract/guild-commerce-v1.json"),
+        default=Path("src/atraxis/_contract/public-v1.json"),
     )
     args = parser.parse_args()
 

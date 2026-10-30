@@ -237,3 +237,34 @@ claude mcp add --transport stdio --env ATRAXIS_API_TOKEN="$ATRAXIS_API_TOKEN" at
 ## Лицензия
 
 MIT.
+
+## Публичные события и объявления
+
+Начиная с версии 0.7.0 события и объявления доступны без токена:
+
+```python
+from atraxis import AtraxisClient
+
+with AtraxisClient() as client:
+    for event in client.iter_events():
+        print(event.title, event.status, event.ends_at)
+    page = client.get_announcements()
+    checkpoint = page.checkpoint
+    for announcement in client.iter_new_announcements(after_id=checkpoint):
+        print(announcement.text)
+```
+
+`get_events`, `get_announcements` и итераторы доступны также в `AsyncAtraxisClient`.
+Публичные методы не отправляют токен, даже если он настроен для методов гильдии.
+Гильдейские методы по-прежнему требуют токен; при его отсутствии ошибка возникает при вызове метода.
+
+Для постоянного опроса вызывайте `get_announcements(order="asc", after_id=checkpoint)`.
+Передавайте `next_cursor`, сохраняя те же фильтры и `after_id`, пока не обработаете все страницы;
+после этого сохраните последний `checkpoint`. История хранится 90 дней.
+Ответ 410 означает, что checkpoint истёк: начните чтение без него.
+Лимит обоих публичных методов вместе — 300 запросов в минуту с IP; после 429 учитывайте `Retry-After`.
+Запись в ленте подтверждает публикацию игрового факта, а не доставку сообщения в общий чат.
+
+MCP-инструменты `atraxis_get_events` и `atraxis_get_announcements` доступны без `ATRAXIS_API_TOKEN`
+и без `--allow-writes`. Обычные инструменты гильдии сохраняют прежние требования авторизации.
+Общий OpenAPI-контракт: <https://atraxisonline.com/api/developers/openapi.json>.

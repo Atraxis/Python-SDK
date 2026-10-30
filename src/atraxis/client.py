@@ -33,6 +33,7 @@ from .models import (
     Warehouse,
     WarehouseItem,
 )
+from .public_models import PublicAnnouncement, PublicAnnouncementPage, PublicEvent, PublicEventPage
 
 DEFAULT_BASE_URL = "https://atraxisonline.com/api/external/v1"
 
@@ -40,8 +41,6 @@ DEFAULT_BASE_URL = "https://atraxisonline.com/api/external/v1"
 def _configuration(token: str | None, base_url: str | None) -> tuple[str, str]:
     resolved_token = token if token is not None else os.getenv("ATRAXIS_API_TOKEN", "")
     resolved_token = resolved_token.strip()
-    if not resolved_token:
-        raise ValueError("Atraxis API token is required")
     resolved_base = (base_url or os.getenv("ATRAXIS_API_BASE_URL") or DEFAULT_BASE_URL).strip()
     if not resolved_base:
         raise ValueError("Atraxis API base URL is required")
@@ -144,6 +143,40 @@ def _activity_page_params(
         if parsed.int == 0 or str(parsed) != after_event_id:
             raise ValueError("after_event_id must be an event_id from an activity response")
         params["after_event_id"] = after_event_id
+    return params
+
+
+def _public_params(
+    page_size: int,
+    cursor: str | None,
+    kind: str | None,
+    *,
+    event_id: str | None = None,
+    after_id: str | None = None,
+    order: str | None = None,
+) -> dict[str, QueryValue]:
+    params = _optional_page_params(page_size, cursor)
+    if kind is not None:
+        if not isinstance(kind, str) or not IDENTITY_PLATFORM_PATTERN.fullmatch(kind):
+            raise ValueError("kind must be a non-empty slug")
+        params["kind"] = kind
+    if event_id is not None:
+        if not isinstance(event_id, str) or str(uuid.UUID(event_id)) != event_id:
+            raise ValueError("event_id must be a canonical UUID")
+        params["event_id"] = event_id
+    if after_id is not None:
+        if (
+            not isinstance(after_id, str)
+            or not after_id.isascii()
+            or not after_id.isdecimal()
+            or str(int(after_id)) != after_id
+        ):
+            raise ValueError("after_id must be a checkpoint from an announcement page")
+        params["after_id"] = after_id
+    if order is not None:
+        if order not in {"asc", "desc"}:
+            raise ValueError("order must be asc or desc")
+        params["order"] = order
     return params
 
 
@@ -307,6 +340,80 @@ class AtraxisClient:
             order="asc",
         )
 
+    def get_events(
+        self, *, page_size: int = 50, cursor: str | None = None, kind: str | None = None
+    ) -> PublicEventPage:
+        response = self._transport.request(
+            "GET", "events", params=_public_params(page_size, cursor, kind), authenticated=False
+        )
+        try:
+            return PublicEventPage.from_dict(object_payload(response))
+        except (TypeError, ValueError) as exc:
+            raise AtraxisResponseError(response_request_id(response)) from exc
+
+    def iter_events(self, *, page_size: int = 50, kind: str | None = None) -> Iterator[PublicEvent]:
+        cursor: str | None = None
+        while True:
+            page = self.get_events(page_size=page_size, cursor=cursor, kind=kind)
+            yield from page.items
+            if not page.next_cursor:
+                return
+            cursor = page.next_cursor
+
+    def get_announcements(
+        self,
+        *,
+        page_size: int = 50,
+        cursor: str | None = None,
+        kind: str | None = None,
+        event_id: str | None = None,
+        after_id: str | None = None,
+        order: str = "desc",
+    ) -> PublicAnnouncementPage:
+        response = self._transport.request(
+            "GET",
+            "announcements",
+            params=_public_params(
+                page_size, cursor, kind, event_id=event_id, after_id=after_id, order=order
+            ),
+            authenticated=False,
+        )
+        try:
+            return PublicAnnouncementPage.from_dict(object_payload(response))
+        except (TypeError, ValueError) as exc:
+            raise AtraxisResponseError(response_request_id(response)) from exc
+
+    def iter_announcements(
+        self,
+        *,
+        page_size: int = 50,
+        kind: str | None = None,
+        event_id: str | None = None,
+        after_id: str | None = None,
+        order: str = "desc",
+    ) -> Iterator[PublicAnnouncement]:
+        cursor: str | None = None
+        while True:
+            page = self.get_announcements(
+                page_size=page_size,
+                cursor=cursor,
+                kind=kind,
+                event_id=event_id,
+                after_id=after_id,
+                order=order,
+            )
+            yield from page.items
+            if not page.next_cursor:
+                return
+            cursor = page.next_cursor
+
+    def iter_new_announcements(
+        self, *, after_id: str, page_size: int = 50, kind: str | None = None
+    ) -> Iterator[PublicAnnouncement]:
+        yield from self.iter_announcements(
+            page_size=page_size, after_id=after_id, order="asc", kind=kind
+        )
+
 
 class AsyncAtraxisClient:
     """Small typed asynchronous client. The token is never included in ``repr``."""
@@ -468,5 +575,84 @@ class AsyncAtraxisClient:
             page_size=page_size,
             after_event_id=after_event_id,
             order="asc",
+        ):
+            yield item
+
+    async def get_events(
+        self, *, page_size: int = 50, cursor: str | None = None, kind: str | None = None
+    ) -> PublicEventPage:
+        response = await self._transport.request(
+            "GET", "events", params=_public_params(page_size, cursor, kind), authenticated=False
+        )
+        try:
+            return PublicEventPage.from_dict(object_payload(response))
+        except (TypeError, ValueError) as exc:
+            raise AtraxisResponseError(response_request_id(response)) from exc
+
+    async def iter_events(
+        self, *, page_size: int = 50, kind: str | None = None
+    ) -> AsyncIterator[PublicEvent]:
+        cursor: str | None = None
+        while True:
+            page = await self.get_events(page_size=page_size, cursor=cursor, kind=kind)
+            for item in page.items:
+                yield item
+            if not page.next_cursor:
+                return
+            cursor = page.next_cursor
+
+    async def get_announcements(
+        self,
+        *,
+        page_size: int = 50,
+        cursor: str | None = None,
+        kind: str | None = None,
+        event_id: str | None = None,
+        after_id: str | None = None,
+        order: str = "desc",
+    ) -> PublicAnnouncementPage:
+        response = await self._transport.request(
+            "GET",
+            "announcements",
+            params=_public_params(
+                page_size, cursor, kind, event_id=event_id, after_id=after_id, order=order
+            ),
+            authenticated=False,
+        )
+        try:
+            return PublicAnnouncementPage.from_dict(object_payload(response))
+        except (TypeError, ValueError) as exc:
+            raise AtraxisResponseError(response_request_id(response)) from exc
+
+    async def iter_announcements(
+        self,
+        *,
+        page_size: int = 50,
+        kind: str | None = None,
+        event_id: str | None = None,
+        after_id: str | None = None,
+        order: str = "desc",
+    ) -> AsyncIterator[PublicAnnouncement]:
+        cursor: str | None = None
+        while True:
+            page = await self.get_announcements(
+                page_size=page_size,
+                cursor=cursor,
+                kind=kind,
+                event_id=event_id,
+                after_id=after_id,
+                order=order,
+            )
+            for item in page.items:
+                yield item
+            if not page.next_cursor:
+                return
+            cursor = page.next_cursor
+
+    async def iter_new_announcements(
+        self, *, after_id: str, page_size: int = 50, kind: str | None = None
+    ) -> AsyncIterator[PublicAnnouncement]:
+        async for item in self.iter_announcements(
+            page_size=page_size, after_id=after_id, order="asc", kind=kind
         ):
             yield item

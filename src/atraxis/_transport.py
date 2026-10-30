@@ -34,7 +34,7 @@ def response_json(response: httpx.Response) -> object:
 
 def _redact(value: object, token: str) -> object:
     if isinstance(value, str):
-        return value.replace(token, "[REDACTED]")
+        return value.replace(token, "[REDACTED]") if token else value
     if isinstance(value, list):
         return [_redact(item, token) for item in value]
     if isinstance(value, Mapping):
@@ -81,9 +81,10 @@ def retry_delay(response: httpx.Response | None, attempt: int) -> float:
 def safe_headers(token: str, *, idempotency_key: str | None = None) -> dict[str, str]:
     headers = {
         "Accept": "application/json, application/problem+json",
-        "Authorization": f"Bearer {token}",
         "User-Agent": f"atraxis-sdk/{PACKAGE_VERSION}",
     }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
     return headers
@@ -112,7 +113,11 @@ class SyncTransport:
         params: Mapping[str, QueryValue] | None = None,
         body: object | None = None,
         idempotency_key: str | None = None,
+        authenticated: bool = True,
     ) -> httpx.Response:
+        if authenticated and not self._token:
+            raise ValueError("Atraxis API token is required for guild methods")
+        request_token = self._token if authenticated else ""
         response: httpx.Response | None = None
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -121,7 +126,7 @@ class SyncTransport:
                     path,
                     params=params,
                     json=body,
-                    headers=safe_headers(self._token, idempotency_key=idempotency_key),
+                    headers=safe_headers(request_token, idempotency_key=idempotency_key),
                 )
             except httpx.TransportError:
                 if attempt >= MAX_RETRIES:
@@ -158,7 +163,11 @@ class AsyncTransport:
         params: Mapping[str, QueryValue] | None = None,
         body: object | None = None,
         idempotency_key: str | None = None,
+        authenticated: bool = True,
     ) -> httpx.Response:
+        if authenticated and not self._token:
+            raise ValueError("Atraxis API token is required for guild methods")
+        request_token = self._token if authenticated else ""
         response: httpx.Response | None = None
         for attempt in range(MAX_RETRIES + 1):
             try:
@@ -167,7 +176,7 @@ class AsyncTransport:
                     path,
                     params=params,
                     json=body,
-                    headers=safe_headers(self._token, idempotency_key=idempotency_key),
+                    headers=safe_headers(request_token, idempotency_key=idempotency_key),
                 )
             except httpx.TransportError:
                 if attempt >= MAX_RETRIES:

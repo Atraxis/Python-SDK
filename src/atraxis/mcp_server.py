@@ -68,14 +68,14 @@ def _safe_failure(error: Exception) -> dict[str, object]:
 
 
 def _contract() -> Mapping[str, Any]:
-    path = files("atraxis._contract").joinpath("guild-commerce-v1.json")
+    path = files("atraxis._contract").joinpath("public-v1.json")
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, Mapping):
         raise RuntimeError("Packaged Atraxis contract is invalid")
     return value
 
 
-def _client(token: str, base_url: str | None) -> AsyncAtraxisClient:
+def _client(token: str | None, base_url: str | None) -> AsyncAtraxisClient:
     return AsyncAtraxisClient(token, base_url=base_url)
 
 
@@ -189,6 +189,48 @@ def build_server(*, token: str | None, base_url: str | None, allow_writes: bool)
                         "operation": _resolve_contract_refs(spec, operation),
                     }
         return {"error": {"message": "Unknown Atraxis operation_id"}}
+
+    @mcp.tool(annotations=readonly)
+    async def atraxis_get_events(
+        page_size: int = 50, cursor: str | None = None, kind: str | None = None
+    ) -> dict[str, object]:
+        """Read explicitly public, unfinished events. No token is required."""
+        try:
+            async with _client(None, base_url) as client:
+                return _jsonable_dict(
+                    await client.get_events(page_size=page_size, cursor=cursor, kind=kind)
+                )
+        except Exception as error:
+            return _safe_failure(error)
+
+    @mcp.tool(annotations=readonly)
+    async def atraxis_get_announcements(
+        page_size: int = 50,
+        cursor: str | None = None,
+        kind: str | None = None,
+        event_id: str | None = None,
+        after_id: str | None = None,
+        order: str = "desc",
+    ) -> dict[str, object]:
+        """Read public announcements for 90 days.
+
+        Drain all pages before saving checkpoint; 410 requires a fresh read.
+        A publication is not a chat delivery receipt.
+        """
+        try:
+            async with _client(None, base_url) as client:
+                return _jsonable_dict(
+                    await client.get_announcements(
+                        page_size=page_size,
+                        cursor=cursor,
+                        kind=kind,
+                        event_id=event_id,
+                        after_id=after_id,
+                        order=order,
+                    )
+                )
+        except Exception as error:
+            return _safe_failure(error)
 
     if token:
 

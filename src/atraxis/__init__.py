@@ -27,6 +27,16 @@ from .models import (
     WarehousePassiveSkill,
     WarehouseShieldAbility,
 )
+from .public_models import (
+    PublicAnnouncement,
+    PublicAnnouncementPage,
+    PublicEvent,
+    PublicEventDetails,
+    PublicEventLocation,
+    PublicEventLot,
+    PublicEventPage,
+    PublicPlayerMention,
+)
 
 __all__ = [
     "ActivityEvent",
@@ -45,6 +55,14 @@ __all__ = [
     "PlayerBalances",
     "PlayerIdentities",
     "PlayerIdentity",
+    "PublicAnnouncement",
+    "PublicAnnouncementPage",
+    "PublicEvent",
+    "PublicEventDetails",
+    "PublicEventLocation",
+    "PublicEventLot",
+    "PublicEventPage",
+    "PublicPlayerMention",
     "TransferResult",
     "Warehouse",
     "WarehouseCombatStats",

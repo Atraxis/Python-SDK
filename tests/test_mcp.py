@@ -18,7 +18,12 @@ async def tool_names(*, token: str | None, allow_writes: bool) -> set[str]:
 @pytest.mark.asyncio
 async def test_mcp_without_token_exposes_only_public_contract_tools() -> None:
     names = await tool_names(token=None, allow_writes=True)
-    assert names == {"atraxis_api_overview", "atraxis_api_endpoint"}
+    assert names == {
+        "atraxis_api_overview",
+        "atraxis_api_endpoint",
+        "atraxis_get_events",
+        "atraxis_get_announcements",
+    }
 
 
 @pytest.mark.asyncio
@@ -92,7 +97,7 @@ async def test_mcp_contract_tool_runs_through_real_client_session() -> None:
 
     assert result.is_error is False
     assert result.structured_content is not None
-    assert result.structured_content["version"] == "1.4.0"
+    assert result.structured_content["version"] == "1.5.0"
 
     assert endpoint.is_error is False
     assert endpoint.structured_content is not None
