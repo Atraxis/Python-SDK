@@ -16,6 +16,17 @@ MAX_GAME_PLAYER_ID = 9_223_372_036_854_775_807
 MAX_EXTERNAL_PLAYER_ID_BYTES = 255
 
 
+def _parse_datetime(value: str) -> datetime:
+    # Go emits RFC 3339 with 0 to 9 fractional digits. Python 3.10 accepts only
+    # 3 or 6; datetime itself stores microseconds on every supported version.
+    normalized = re.sub(
+        r"\.([0-9]+)(?=(?:Z|[+-][0-9]{2}:[0-9]{2})$)",
+        lambda match: "." + match[1].ljust(6, "0")[:6],
+        value,
+    )
+    return datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+
+
 def _mapping(value: object, name: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{name} must be an object")
@@ -327,12 +338,8 @@ class WarehouseFishDetails:
             species_key=_string(data, "species_key"),
             weight_grams=_integer(data, "weight_grams"),
             was_school_catch=_boolean(data, "was_school_catch"),
-            caught_at=datetime.fromisoformat(caught_at.replace("Z", "+00:00"))
-            if caught_at
-            else None,
-            expires_at=datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-            if expires_at
-            else None,
+            caught_at=_parse_datetime(caught_at) if caught_at else None,
+            expires_at=_parse_datetime(expires_at) if expires_at else None,
             freshness_percent=_optional_number(data, "freshness_percent", minimum=0, maximum=100),
             region=_optional_text(data, "region"),
             biome=_optional_text(data, "biome"),
@@ -886,7 +893,7 @@ class ActivityEvent:
     @classmethod
     def from_dict(cls, value: object) -> ActivityEvent:
         data = _mapping(value, "activity")
-        occurred_at = datetime.fromisoformat(_text(data, "occurred_at").replace("Z", "+00:00"))
+        occurred_at = _parse_datetime(_text(data, "occurred_at"))
         kind = _text(data, "kind")
         deposit_method = _optional_text(data, "deposit_method")
         if deposit_method not in {None, "guild_deposit", "tagged_transfer"}:
@@ -943,7 +950,5 @@ class ActivityPage:
                 ActivityEvent.from_dict(item) for item in _items(data.get("items"), "items")
             ),
             next_cursor=_optional_text(data, "next_cursor"),
-            available_since=datetime.fromisoformat(available.replace("Z", "+00:00"))
-            if available
-            else None,
+            available_since=_parse_datetime(available) if available else None,
         )

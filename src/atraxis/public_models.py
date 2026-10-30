@@ -16,6 +16,7 @@ from .models import (
     _optional_integer,
     _optional_number,
     _optional_text,
+    _parse_datetime,
     _string,
     _text,
 )
@@ -29,7 +30,7 @@ def _date(data: Mapping[str, Any], name: str, *, nullable: bool = False) -> date
         return None
     if not isinstance(value, str):
         raise ValueError(f"{name} must be an RFC 3339 timestamp")
-    result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    result = _parse_datetime(value)
     if result.tzinfo is None:
         raise ValueError(f"{name} must contain a timezone")
     return result
